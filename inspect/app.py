@@ -10,21 +10,12 @@ app = dash.Dash(__name__)
 
 # 读取数据
 df = pd.read_csv('data.csv')
+df['collection_time'] = pd.to_datetime(df['collection_time'])
 
 # 定义页面布局
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     html.Div([
-        html.Label("选择 Region："),
-        dcc.Dropdown(
-            id='region-dropdown',
-            options=[
-                {'label': 'use1', 'value': 'use1'},
-                {'label': 'aps1', 'value': 'aps1'},
-                {'label': 'euw1', 'value': 'euw1'}
-            ],
-            value='use1'
-        ),
         html.Label("选择 Band："),
         dcc.Dropdown(
             id='band-dropdown',
@@ -34,79 +25,74 @@ app.layout = html.Div([
                 {'label': '6g', 'value': '6g'}
             ],
             value='2.4g'
+        ),
+        html.Label("选择时间粒度："),
+        dcc.Dropdown(
+            id='time-granularity-dropdown',
+            options=[
+                {'label': '15 minutes', 'value': '15min'},
+                {'label': '1 hour', 'value': '1h'},
+                {'label': '1 day', 'value': '1d'},
+                {'label': '7 days', 'value': '7d'}
+            ],
+            value='15min'
+        ),
+        html.Label("选择指标："),
+        dcc.Dropdown(
+            id='indicator-dropdown',
+            options=[
+                {'label': 'jitter', 'value': 'jitter'},
+                {'label': 'latency', 'value': 'latency'},
+                {'label': 'cpu_usage', 'value': 'cpu_usage'},
+                {'label': 'connectivity_score', 'value': 'connectivity_score'},
+                {'label': 'system_health_score', 'value': 'system_health_score'}
+            ],
+            value='jitter'
+        ),
+        html.Label("选择百分位："),
+        dcc.Slider(
+            id='percentile-slider',
+            min=0,
+            max=100,
+            step=1,
+            value=50,
+            marks={i: f'{i}%' for i in range(0, 101, 10)}
         )
     ], style={'display': 'flex', 'flexDirection': 'column', 'width': '20%', 'position': 'absolute', 'left': '10px', 'top': '10px'}),
-    html.Div(id='page-content', style={'marginLeft': '25%'})
-])
-
-# 定义主页内容
-index_page = html.Div([
-    html.H1("主页"),
-    dcc.Link('跳转到页面 1', href='/page-1'),
-    html.Br(),
-    dcc.Link('跳转到页面 2', href='/page-2'),
-])
-
-# 定义页面 1 内容
-page_1_layout = html.Div([
-    html.H1("页面 1"),
-    html.Label("选择指标："),
-    dcc.Dropdown(
-        id='indicator-dropdown',
-        options=[
-            {'label': 'latency', 'value': 'latency'},
-            {'label': 'cpu_usage', 'value': 'cpu_usage'},
-            {'label': 'connectivity_score', 'value': 'connectivity_score'},
-            {'label': 'system_health_score', 'value': 'system_health_score'},
-            {'label': 'congestion_score', 'value': 'congestion_score'}
-        ],
-        value='latency'
-    ),
-    html.Label("选择百分位："),
-    dcc.Slider(
-        id='percentile-slider',
-        min=0,
-        max=100,
-        step=1,
-        value=50
-    ),
-    html.Div(id='result-output'),
-    html.Br(),
-    dcc.Link('返回主页', href='/')
-])
-
-# 定义页面 2 内容
-page_2_layout = html.Div([
-    html.H1("页面 2"),
-    html.P("这里可以放置不同的内容，如图表或其他组件。"),
-    html.Br(),
-    dcc.Link('返回主页', href='/')
+    html.Div([
+        dcc.Graph(id='indicator-graph')
+    ], style={'marginLeft': '25%'})
 ])
 
 # 更新页面内容回调
-@app.callback(Output('page-content', 'children'),
-              Input('url', 'pathname'))
-def display_page(pathname):
-    if pathname == '/page-1':
-        return page_1_layout
-    elif pathname == '/page-2':
-        return page_2_layout
-    else:
-        return index_page
+@app.callback(Output('indicator-graph', 'figure'),
+              [Input('indicator-dropdown', 'value'),
+               Input('band-dropdown', 'value'),
+               Input('time-granularity-dropdown', 'value'),
+               Input('percentile-slider', 'value')])
+def update_graph(indicator, band, granularity, percentile):
+    filtered_df = df[(df['band'] == band) & (df[indicator].notnull()) & (df[indicator] != 0)]
 
-# 页面 1 的回调函数
-@app.callback(
-    Output('result-output', 'children'),
-    [Input('indicator-dropdown', 'value'),
-     Input('percentile-slider', 'value'),
-     Input('region-dropdown', 'value'),
-     Input('band-dropdown', 'value')]
-)
-def update_output(indicator, percentile, region, band):
-    filtered_df = df[(df['region'] == region) & (df['band'] == band)]
-    values = filtered_df[indicator].dropna()
-    result = np.percentile(values, percentile)
-    return f'选择的百分位数值为: {result}'
+    # 按时间粒度聚合数据
+    if granularity == '15min':
+        freq = '15T'
+    elif granularity == '1h':
+        freq = 'H'
+    elif granularity == '1d':
+        freq = 'D'
+    elif granularity == '7d':
+        freq = '7D'
+
+    aggregated_df = filtered_df.resample(freq, on='collection_time').mean().reset_index()
+
+    return {
+        'data': [
+            {'x': aggregated_df['collection_time'], 'y': aggregated_df[indicator], 'type': 'line', 'name': indicator},
+        ],
+        'layout': {
+            'title': f'{indicator} (百分位: {percentile}%)'
+        }
+    }
 
 if __name__ == '__main__':
     app.run_server(debug=True, host='0.0.0.0')
