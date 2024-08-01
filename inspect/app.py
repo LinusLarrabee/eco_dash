@@ -74,14 +74,14 @@ app.layout = html.Div([
         )
     ], style={'display': 'flex', 'flexDirection': 'column', 'width': '20%', 'position': 'absolute', 'left': '10px', 'top': '10px'}),
     html.Div([
-        dcc.Graph(id='wan-throughput-graph'),
-        dcc.Graph(id='client-online-graph')
+        dcc.Graph(id='indicator-graph'),
+        dcc.Graph(id='all-metrics-graph')
     ], style={'marginLeft': '25%'})
 ])
 
 # 更新页面内容回调
-@app.callback([Output('wan-throughput-graph', 'figure'),
-               Output('client-online-graph', 'figure')],
+@app.callback([Output('indicator-graph', 'figure'),
+               Output('all-metrics-graph', 'figure')],
               [Input('region-dropdown', 'value'),
                Input('band-dropdown', 'value'),
                Input('date-picker-range', 'start_date'),
@@ -107,32 +107,39 @@ def update_graph(region, band, start_date, end_date, granularity, indicator, per
 
     # 按时间粒度聚合数据，并计算指定百分位的指标值
     filtered_df.set_index('utc_time', inplace=True)
-    grouped = filtered_df.resample(freq).apply(lambda x: x.sort_values().iloc[int(len(x) * percentile / 100)])
+
+    def get_percentile_row(df, indicator, percentile):
+        sorted_df = df.sort_values(by=indicator)
+        index = int(len(sorted_df) * percentile / 100)
+        return sorted_df.iloc[index]
+
+    grouped = filtered_df.resample(freq).apply(lambda x: get_percentile_row(x, indicator, percentile))
     grouped = grouped.reset_index()
 
     # 打印调试信息
     print("Filtered DataFrame head:", filtered_df.head())
     print("Grouped DataFrame head:", grouped.head())
 
-    wan_throughput_figure = {
+    indicator_figure = {
         'data': [
-            {'x': grouped['utc_time'], 'y': grouped['wan_throughput'], 'type': 'line', 'name': 'WAN Throughput'},
+            {'x': grouped['utc_time'], 'y': grouped[indicator], 'type': 'line', 'name': indicator},
         ],
         'layout': {
-            'title': f'WAN Throughput (百分位: {percentile}%)'
+            'title': f'{indicator.capitalize()} (百分位: {percentile}%)'
         }
     }
 
-    client_online_figure = {
+    all_metrics_figure = {
         'data': [
-            {'x': grouped['utc_time'], 'y': grouped['client_online'], 'type': 'line', 'name': 'Client Online'},
+            {'x': grouped['utc_time'], 'y': grouped[col], 'type': 'line', 'name': col}
+            for col in grouped.columns if col not in ['utc_time', 'region', 'band']
         ],
         'layout': {
-            'title': f'Client Online (百分位: {percentile}%)'
+            'title': f'All Metrics for {indicator.capitalize()} Percentile'
         }
     }
 
-    return wan_throughput_figure, client_online_figure
+    return indicator_figure, all_metrics_figure
 
 if __name__ == '__main__':
     app.run_server(debug=True, host='0.0.0.0')
