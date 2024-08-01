@@ -54,15 +54,6 @@ app.layout = html.Div([
             ],
             value='1d'
         ),
-        html.Label("选择指标："),
-        dcc.Dropdown(
-            id='indicator-dropdown',
-            options=[
-                {'label': 'wan_throughput', 'value': 'wan_throughput'},
-                {'label': 'client_online', 'value': 'client_online'}
-            ],
-            value='wan_throughput'
-        ),
         html.Label("选择百分位："),
         dcc.Slider(
             id='percentile-slider',
@@ -74,20 +65,21 @@ app.layout = html.Div([
         )
     ], style={'display': 'flex', 'flexDirection': 'column', 'width': '20%', 'position': 'absolute', 'left': '10px', 'top': '10px'}),
     html.Div([
-        dcc.Graph(id='indicator-graph')
+        dcc.Graph(id='wan-throughput-graph'),
+        dcc.Graph(id='client-online-graph')
     ], style={'marginLeft': '25%'})
 ])
 
 # 更新页面内容回调
-@app.callback(Output('indicator-graph', 'figure'),
+@app.callback([Output('wan-throughput-graph', 'figure'),
+               Output('client-online-graph', 'figure')],
               [Input('region-dropdown', 'value'),
                Input('band-dropdown', 'value'),
                Input('date-picker-range', 'start_date'),
                Input('date-picker-range', 'end_date'),
                Input('time-granularity-dropdown', 'value'),
-               Input('indicator-dropdown', 'value'),
                Input('percentile-slider', 'value')])
-def update_graph(region, band, start_date, end_date, granularity, indicator, percentile):
+def update_graph(region, band, start_date, end_date, granularity, percentile):
     filtered_df = df.copy()
 
     if region != 'all':
@@ -103,19 +95,38 @@ def update_graph(region, band, start_date, end_date, granularity, indicator, per
     elif granularity == '7d':
         freq = '7D'
 
-    # 按时间粒度聚合数据，并计算指定百分位的指标值
     filtered_df.set_index('utc_time', inplace=True)
-    grouped = filtered_df.resample(freq).apply(lambda x: x[indicator].sort_values().iloc[int(len(x) * percentile / 100)])
-    grouped = grouped.reset_index()
 
-    return {
+    # 按时间粒度聚合数据
+    def get_percentile_data(x):
+        x_sorted = x.sort_values('wan_throughput')
+        return x_sorted.iloc[int(len(x_sorted) * percentile / 100)]
+
+    grouped = filtered_df.resample(freq).apply(get_percentile_data).reset_index()
+
+    # 打印调试信息
+    print("Filtered DataFrame head:", filtered_df.head())
+    print("Grouped DataFrame head:", grouped.head())
+
+    wan_throughput_figure = {
         'data': [
-            {'x': grouped['utc_time'], 'y': grouped[indicator], 'type': 'line', 'name': indicator},
+            {'x': grouped['utc_time'], 'y': grouped['wan_throughput'], 'type': 'line', 'name': 'WAN Throughput'}
         ],
         'layout': {
-            'title': f'{indicator.capitalize()} (百分位: {percentile}%)'
+            'title': f'WAN Throughput (百分位: {percentile}%)'
         }
     }
+
+    client_online_figure = {
+        'data': [
+            {'x': grouped['utc_time'], 'y': grouped['client_online'], 'type': 'line', 'name': 'Client Online'}
+        ],
+        'layout': {
+            'title': f'Client Online (百分位: {percentile}%)'
+        }
+    }
+
+    return wan_throughput_figure, client_online_figure
 
 if __name__ == '__main__':
     app.run_server(debug=True, host='0.0.0.0')
