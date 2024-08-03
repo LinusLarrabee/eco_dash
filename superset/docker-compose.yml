@@ -1,0 +1,37 @@
+version: '3.7'
+services:
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: superset
+      POSTGRES_PASSWORD: superset
+      POSTGRES_DB: superset
+    networks:
+      - default
+    ports:
+      - "5432:5432"  # 映射PostgreSQL端口到本地
+
+  redis:
+    image: redis:latest
+    networks:
+      - default
+
+  superset:
+    build: .
+    ports:
+      - "8088:8088"
+    environment:
+      - SUPERSET_ENV=production
+      - SUPERSET_DB_URI=postgresql+psycopg2://superset:superset@postgres/superset
+      - SECRET_KEY=CSJdw81i2E1nGchC35GAinwqKBSTBrqUaelSPeQcCzLX0aWTRRC5Y86k
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - default
+
+networks:
+  default:
+    driver: bridge

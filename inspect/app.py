@@ -54,12 +54,12 @@ app.layout = html.Div([
             ],
             value='1d'
         ),
-        html.Label("选择指标："),
+        html.Label("选择排序指标："),
         dcc.Dropdown(
-            id='indicator-dropdown',
+            id='sort-indicator-dropdown',
             options=[
-                {'label': 'wan_throughput', 'value': 'wan_throughput'},
-                {'label': 'client_online', 'value': 'client_online'}
+                {'label': 'WAN Throughput', 'value': 'wan_throughput'},
+                {'label': 'Client Online', 'value': 'client_online'}
             ],
             value='wan_throughput'
         ),
@@ -69,29 +69,27 @@ app.layout = html.Div([
             min=0,
             max=100,
             step=1,
-            value=50,
+            value=40,
             marks={i: f'{i}%' for i in range(0, 101, 10)}
         )
     ], style={'display': 'flex', 'flexDirection': 'column', 'width': '20%', 'position': 'absolute', 'left': '10px', 'top': '10px'}),
     html.Div([
         dcc.Graph(id='wan-throughput-graph'),
-        dcc.Graph(id='client-online-graph'),
-        dcc.Graph(id='other-metrics-graph')
+        dcc.Graph(id='client-online-graph')
     ], style={'marginLeft': '25%'})
 ])
 
 # 更新页面内容回调
 @app.callback([Output('wan-throughput-graph', 'figure'),
-               Output('client-online-graph', 'figure'),
-               Output('other-metrics-graph', 'figure')],
+               Output('client-online-graph', 'figure')],
               [Input('region-dropdown', 'value'),
                Input('band-dropdown', 'value'),
                Input('date-picker-range', 'start_date'),
                Input('date-picker-range', 'end_date'),
                Input('time-granularity-dropdown', 'value'),
-               Input('indicator-dropdown', 'value'),
+               Input('sort-indicator-dropdown', 'value'),
                Input('percentile-slider', 'value')])
-def update_graph(region, band, start_date, end_date, granularity, indicator, percentile):
+def update_graph(region, band, start_date, end_date, granularity, sort_indicator, percentile):
     filtered_df = df.copy()
 
     if region != 'all':
@@ -107,15 +105,12 @@ def update_graph(region, band, start_date, end_date, granularity, indicator, per
     elif granularity == '7d':
         freq = '7D'
 
-    filtered_df.set_index('utc_time', inplace=True)
+    # 仅保留数值列
+    numeric_cols = filtered_df.select_dtypes(include=[np.number]).columns.tolist()
+    filtered_df = filtered_df.set_index('utc_time')
 
-    def get_percentile_row(df, indicator, percentile):
-        sorted_df = df.sort_values(by=indicator)
-        index = int(len(sorted_df) * percentile / 100)
-        return sorted_df.iloc[index]
-
-    grouped = filtered_df.resample(freq).apply(lambda x: get_percentile_row(x, indicator, percentile))
-    grouped = grouped.reset_index()
+    # 按时间粒度聚合数据
+    grouped = filtered_df.resample(freq).apply(lambda x: x.loc[x[sort_indicator].rank(pct=True) <= percentile / 100.0].iloc[-1])
 
     # 打印调试信息
     print("Filtered DataFrame head:", filtered_df.head())
@@ -123,33 +118,27 @@ def update_graph(region, band, start_date, end_date, granularity, indicator, per
 
     wan_throughput_figure = {
         'data': [
-            {'x': grouped['utc_time'], 'y': grouped['wan_throughput'], 'type': 'line', 'name': 'WAN Throughput'},
+            {'x': grouped.index, 'y': grouped['wan_throughput'], 'type': 'line', 'name': 'WAN Throughput'}
         ],
         'layout': {
-            'title': f'WAN Throughput (百分位: {percentile}%)'
+            'title': f'WAN Throughput for Percentile {percentile}%',
+            'xaxis': {'title': 'Time'},
+            'yaxis': {'title': 'WAN Throughput'}
         }
     }
 
     client_online_figure = {
         'data': [
-            {'x': grouped['utc_time'], 'y': grouped['client_online'], 'type': 'line', 'name': 'Client Online'},
+            {'x': grouped.index, 'y': grouped['client_online'], 'type': 'line', 'name': 'Client Online'}
         ],
         'layout': {
-            'title': f'Client Online (百分位: {percentile}%)'
+            'title': f'Client Online for Percentile {percentile}%',
+            'xaxis': {'title': 'Time'},
+            'yaxis': {'title': 'Client Online'}
         }
     }
 
-    other_metrics_figure = {
-        'data': [
-            {'x': grouped['utc_time'], 'y': grouped[col], 'type': 'line', 'name': col}
-            for col in grouped.columns if col not in ['utc_time', 'wan_throughput', 'client_online']
-        ],
-        'layout': {
-            'title': 'Other Metrics'
-        }
-    }
-
-    return wan_throughput_figure, client_online_figure, other_metrics_figure
+    return wan_throughput_figure, client_online_figure
 
 if __name__ == '__main__':
     app.run_server(debug=True, host='0.0.0.0')
