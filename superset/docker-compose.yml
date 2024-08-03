@@ -9,7 +9,7 @@ services:
     networks:
       - default
     ports:
-      - "5432:5432"  # 映射PostgreSQL端口到本地
+      - "5432:5432"
 
   redis:
     image: redis:latest
