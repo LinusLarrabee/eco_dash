@@ -93,6 +93,7 @@ app.layout = html.Div([
                 max=100,
                 step=0.01,
                 value=50,
+                debounce=True,
                 style={'marginRight': '10px'}
             ),
             html.Label("到"),
@@ -102,7 +103,8 @@ app.layout = html.Div([
                 min=0,
                 max=100,
                 step=0.01,
-                value=60
+                value=60,
+                debounce=True
             )
         ], style={'display': 'flex', 'alignItems': 'center'}),
         html.Div(id='percentile-output')
@@ -126,6 +128,7 @@ app.layout = html.Div([
     prevent_initial_call=True
 )
 def update_graphs(region, band, start_date, start_time, groups, granularity, sort_indicator, percentile_start, percentile_end):
+    print(f"Inputs - region: {region}, band: {band}, start_date: {start_date}, start_time: {start_time}, groups: {groups}, granularity: {granularity}, sort_indicator: {sort_indicator}, percentile_start: {percentile_start}, percentile_end: {percentile_end}")
     if int(np.floor(100 * percentile_start)) > int(np.floor(100 * percentile_end)):
         return [[], "Error: 起始百分位必须小于或等于结束百分位"]
 
@@ -140,15 +143,22 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
     # 解析起始时间和日期
     try:
         start_datetime = pd.to_datetime(f"{start_date} {start_time}")
+        print(f"Parsed start_datetime: {start_datetime}")
     except Exception as e:
         return [[], f"Error: 无法解析起始时间和日期 - {str(e)}"]
 
-    if granularity in ['H', 'D']:
-        end_datetime = start_datetime + pd.to_timedelta(groups, unit=granularity)
-    else:
-        end_datetime = start_datetime + pd.to_timedelta(groups * int(granularity[:-1]), unit=granularity[-1])
+    try:
+        if granularity in ['H', 'D']:
+            end_datetime = start_datetime + pd.to_timedelta(groups, unit=granularity)
+        else:
+            end_datetime = start_datetime + pd.to_timedelta(groups * int(granularity[:-1]), unit=granularity[-1])
+        print(f"Calculated end_datetime: {end_datetime}")
+    except Exception as e:
+        return [[], f"Error: 无法计算结束时间 - {str(e)}"]
 
+    # 过滤数据
     filtered_df = filtered_df[(filtered_df['utc_time'] >= start_datetime) & (filtered_df['utc_time'] <= end_datetime)]
+    print(f"Filtered DataFrame shape: {filtered_df.shape}")
 
     # 仅保留数值列
     numeric_cols = filtered_df.select_dtypes(include=[np.number]).columns.tolist()
