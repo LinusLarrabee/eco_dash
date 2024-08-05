@@ -38,21 +38,37 @@ app.layout = html.Div([
             ],
             value='all'
         ),
-        html.Label("选择时间范围："),
-        dcc.DatePickerRange(
-            id='date-picker-range',
-            start_date=df['utc_time'].min().date(),
-            end_date=df['utc_time'].max().date(),
-            display_format='YYYY-MM-DD'
+        html.Label("选择起始时间："),
+        dcc.DatePickerSingle(
+            id='start-date-picker',
+            min_date_allowed=df['utc_time'].min().date(),
+            max_date_allowed=df['utc_time'].max().date(),
+            initial_visible_month=df['utc_time'].min().date(),
+            date=df['utc_time'].min().date(),
+        ),
+        dcc.Input(
+            id='start-time-input',
+            type='text',
+            placeholder='HH:MM',
+            value='00:00'
+        ),
+        html.Label("选择组别："),
+        dcc.Input(
+            id='groups-input',
+            type='number',
+            min=1,
+            value=1,
         ),
         html.Label("选择时间粒度："),
         dcc.Dropdown(
             id='time-granularity-dropdown',
             options=[
-                {'label': '1 day', 'value': '1d'},
-                {'label': '7 days', 'value': '7d'}
+                {'label': '15 minutes', 'value': '15T'},
+                {'label': '1 hour', 'value': 'H'},
+                {'label': '1 day', 'value': 'D'},
+                {'label': '7 days', 'value': '7D'}
             ],
-            value='1d'
+            value='15T'
         ),
         html.Label("选择排序指标："),
         dcc.Dropdown(
@@ -100,15 +116,16 @@ app.layout = html.Div([
      Output('percentile-output', 'children')],
     [Input('region-dropdown', 'value'),
      Input('band-dropdown', 'value'),
-     Input('date-picker-range', 'start_date'),
-     Input('date-picker-range', 'end_date'),
+     Input('start-date-picker', 'date'),
+     Input('start-time-input', 'value'),
+     Input('groups-input', 'value'),
      Input('time-granularity-dropdown', 'value'),
      Input('sort-indicator-dropdown', 'value'),
      Input('percentile-start', 'value'),
      Input('percentile-end', 'value')],
     prevent_initial_call=True
 )
-def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, percentile_start, percentile_end):
+def update_graphs(region, band, start_date, start_time, groups, granularity, sort_indicator, percentile_start, percentile_end):
     if int(np.floor(100 * percentile_start)) > int(np.floor(100 * percentile_end)):
         return [[], "Error: 起始百分位必须小于或等于结束百分位"]
 
@@ -120,12 +137,18 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     if band != 'all':
         filtered_df = filtered_df[filtered_df['band'] == band]
 
-    filtered_df = filtered_df[(filtered_df['utc_time'] >= start_date) & (filtered_df['utc_time'] <= end_date)]
+    # 解析起始时间和日期
+    try:
+        start_datetime = pd.to_datetime(f"{start_date} {start_time}")
+    except Exception as e:
+        return [[], f"Error: 无法解析起始时间和日期 - {str(e)}"]
 
-    if granularity == '1d':
-        freq = 'D'
-    elif granularity == '7d':
-        freq = '7D'
+    if granularity in ['H', 'D']:
+        end_datetime = start_datetime + pd.to_timedelta(groups, unit=granularity)
+    else:
+        end_datetime = start_datetime + pd.to_timedelta(groups * int(granularity[:-1]), unit=granularity[-1])
+
+    filtered_df = filtered_df[(filtered_df['utc_time'] >= start_datetime) & (filtered_df['utc_time'] <= end_datetime)]
 
     # 仅保留数值列
     numeric_cols = filtered_df.select_dtypes(include=[np.number]).columns.tolist()
@@ -170,7 +193,7 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
         result = {col: round(weighted_values[col], 2) for col in numeric_cols}
         return pd.Series(result)
 
-    grouped = filtered_df.resample(freq).apply(lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end]))
+    grouped = filtered_df.resample(granularity).apply(lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end]))
 
     # 打印调试信息
     print("Filtered DataFrame head:", filtered_df.head())
@@ -181,7 +204,7 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     for col in numeric_cols:
         figure = {
             'data': [{'x': grouped.index, 'y': grouped[col], 'type': 'line', 'name': col}],
-            'layout': {'title': f'{col.capitalize()} for {sort_indicator.capitalize()} {percentile_start:.2f}% - {percentile_end:.2f}%'}
+            'layout': {'title': f'{col.capitalize()} for {sort_indicator.capitalize()} Percentile {percentile_start:.2f}% - {percentile_end:.2f}%'}
         }
         graphs.append(dcc.Graph(figure=figure))
 
