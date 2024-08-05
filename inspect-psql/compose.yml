@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  dash_app:
+    build: ./dash_app
+    container_name: dash_container
+    environment:
+      POSTGRES_DB: qoe
+      POSTGRES_USER: superset
+      POSTGRES_PASSWORD: superset
+      POSTGRES_HOST: superset-postgres-1
+      POSTGRES_PORT: 5432
+    ports:
+      - "8050:8050"
+    networks:
+      - superset_default
+
+networks:
+  superset_default:
+    external: true

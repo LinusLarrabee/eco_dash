@@ -38,26 +38,30 @@ app.layout = html.Div([
             ],
             value='all'
         ),
-        html.Label("选择起始时间："),
-        dcc.DatePickerSingle(
-            id='start-date-picker',
-            min_date_allowed=df['utc_time'].min().date(),
-            max_date_allowed=df['utc_time'].max().date(),
-            initial_visible_month=df['utc_time'].min().date(),
-            date=df['utc_time'].min().date(),
-        ),
-        dcc.Input(
-            id='start-time-input',
-            type='text',
-            placeholder='HH:MM',
-            value='00:00'
-        ),
+        html.Div([
+            html.Label("选择起始时间："),
+            dcc.DatePickerSingle(
+                id='start-date-picker',
+                min_date_allowed=df['utc_time'].min().date(),
+                max_date_allowed=df['utc_time'].max().date(),
+                initial_visible_month=df['utc_time'].min().date(),
+                date=df['utc_time'].min().date(),
+            ),
+            dcc.Input(
+                id='start-time-input',
+                type='text',
+                placeholder='HH:MM',
+                value='00:00',
+                style={'marginLeft': '10px'}
+            )
+        ], style={'display': 'flex', 'alignItems': 'center'}),
         html.Label("选择组别："),
         dcc.Input(
             id='groups-input',
             type='number',
             min=1,
             value=1,
+            style={'width': '100px'}
         ),
         html.Label("选择时间粒度："),
         dcc.Dropdown(
@@ -108,8 +112,8 @@ app.layout = html.Div([
             )
         ], style={'display': 'flex', 'alignItems': 'center'}),
         html.Div(id='percentile-output')
-    ], style={'display': 'flex', 'flexDirection': 'column', 'width': '20%', 'position': 'absolute', 'left': '10px', 'top': '10px'}),
-    html.Div(id='graphs-container', style={'marginLeft': '25%'})
+    ], style={'display': 'flex', 'flexDirection': 'column', 'width': '25%', 'position': 'absolute', 'left': '10px', 'top': '10px'}),
+    html.Div(id='graphs-container', style={'marginLeft': '30%'})
 ])
 
 # 更新页面内容回调
@@ -148,10 +152,16 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
         return [[], f"Error: 无法解析起始时间和日期 - {str(e)}"]
 
     try:
-        if granularity in ['H', 'D']:
-            end_datetime = start_datetime + pd.to_timedelta(groups, unit=granularity)
+        if granularity == '7D':
+            end_datetime = start_datetime + pd.Timedelta(days=7 * groups)
+        elif granularity == '15T':
+            end_datetime = start_datetime + pd.Timedelta(minutes=15 * groups)
+        elif granularity == 'H':
+            end_datetime = start_datetime + pd.Timedelta(hours=groups)
+        elif granularity == 'D':
+            end_datetime = start_datetime + pd.Timedelta(days=groups)
         else:
-            end_datetime = start_datetime + pd.to_timedelta(groups * int(granularity[:-1]), unit=granularity[-1])
+            raise ValueError("Invalid granularity")
         print(f"Calculated end_datetime: {end_datetime}")
     except Exception as e:
         return [[], f"Error: 无法计算结束时间 - {str(e)}"]
@@ -189,7 +199,7 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
         upper_weight = upper_percentile - upper_floor
         all_value = lower_weight * pad_data[lower_ceil] + upper_weight * pad_data[upper_floor + 1]
 
-        for index in range(lower_ceil+1, upper_floor+1):
+        for index in range(lower_ceil + 1, upper_floor + 1):
             all_value = all_value + pad_data[index]
 
         weighted_data = all_value / (upper_percentile - lower_percentile)
