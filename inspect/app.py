@@ -131,36 +131,43 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     filtered_df = filtered_df.set_index('utc_time')
 
     # 计算加权平均
-    def weighted_percentile(data, percents, sorter):
-        data = data[sorter]
+    def weighted_percentile(data, percents):
+        data = np.sort(data)
         num_points = len(data)
+
         lower_percentile = percents[0] / 100.0 * (num_points - 1)
         upper_percentile = percents[1] / 100.0 * (num_points - 1)
 
         lower_index = int(np.floor(lower_percentile))
         upper_index = int(np.ceil(upper_percentile))
 
-        weights = np.zeros(num_points)
-
         if lower_index == upper_index:
+            weights = np.zeros(num_points)
             weights[lower_index] = 1
-        else:
-            weights[lower_index] = upper_index - lower_percentile
-            weights[upper_index] = upper_percentile - lower_index
-            if upper_index - lower_index > 1:
-                weights[lower_index+1:upper_index] = 1
+            print(f"weights: {weights}")
+            weighted_data = np.average(data, weights=weights)
+            return weighted_data
 
-        # 计算加权平均
+        lower_weight = upper_index - lower_percentile
+        upper_weight = upper_percentile - lower_index
+
+        weights = np.zeros(num_points)
+        weights[lower_index] = lower_weight
+        weights[upper_index] = upper_weight
+        if upper_index - lower_index > 1:
+            weights[lower_index+1:upper_index] = 1
+
         weights /= np.sum(weights)
-        weighted_data = np.dot(data.T, weights)
+        print(f"weights: {weights}")
 
+        weighted_data = np.dot(data, weights)
         return weighted_data
 
     # 按时间粒度聚合数据
     def get_percentile_row(x, sort_indicator, percentiles):
         sorter = np.argsort(x[sort_indicator].values)
-        weighted_data = weighted_percentile(x[numeric_cols].values, [percentile_start, percentile_end], sorter)
-        return pd.Series(weighted_data, index=numeric_cols)
+        weighted_data = weighted_percentile(x[sort_indicator].values, percentiles)
+        return weighted_data
 
     grouped = filtered_df.resample(freq).apply(lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end]))
 
