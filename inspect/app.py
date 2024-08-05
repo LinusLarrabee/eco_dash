@@ -68,26 +68,27 @@ app.layout = html.Div([
             ],
             value='wan_throughput'
         ),
-        html.Label("输入起始百分位："),
-        dcc.Input(
-            id='percentile-start',
-            type='number',
-            min=0,
-            max=100,
-            step=0.01,
-            value=40,
-            style={'marginRight': '10px'}
-        ),
-        html.Label("输入结束百分位："),
-        dcc.Input(
-            id='percentile-end',
-            type='number',
-            min=0,
-            max=100,
-            step=0.01,
-            value=60
-        ),
-        html.Button('更新图表', id='update-button', n_clicks=0),
+        html.Div([
+            html.Label("输入起始百分位："),
+            dcc.Input(
+                id='percentile-start',
+                type='number',
+                min=0,
+                max=100,
+                step=0.01,
+                value=40,
+                style={'marginRight': '10px'}
+            ),
+            html.Label("输入结束百分位："),
+            dcc.Input(
+                id='percentile-end',
+                type='number',
+                min=0,
+                max=100,
+                step=0.01,
+                value=60
+            )
+        ], style={'display': 'flex', 'alignItems': 'center'}),
         html.Div(id='percentile-output')
     ], style={'display': 'flex', 'flexDirection': 'column', 'width': '20%', 'position': 'absolute', 'left': '10px', 'top': '10px'}),
     html.Div(id='graphs-container', style={'marginLeft': '25%'})
@@ -97,17 +98,19 @@ app.layout = html.Div([
 @app.callback(
     [Output('graphs-container', 'children'),
      Output('percentile-output', 'children')],
-    [Input('update-button', 'n_clicks')],
-    [State('region-dropdown', 'value'),
-     State('band-dropdown', 'value'),
-     State('date-picker-range', 'start_date'),
-     State('date-picker-range', 'end_date'),
-     State('time-granularity-dropdown', 'value'),
-     State('sort-indicator-dropdown', 'value'),
-     State('percentile-start', 'value'),
-     State('percentile-end', 'value')]
+    [Input('region-dropdown', 'value'),
+     Input('band-dropdown', 'value'),
+     Input('date-picker-range', 'start_date'),
+     Input('date-picker-range', 'end_date'),
+     Input('time-granularity-dropdown', 'value'),
+     Input('sort-indicator-dropdown', 'value'),
+     Input('percentile-start', 'value'),
+     Input('percentile-end', 'value')]
 )
-def update_graphs(n_clicks, region, band, start_date, end_date, granularity, sort_indicator, percentile_start, percentile_end):
+def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, percentile_start, percentile_end):
+    if percentile_start >= percentile_end:
+        return [[], ""]
+
     filtered_df = df.copy()
 
     if region != 'all':
@@ -130,25 +133,40 @@ def update_graphs(n_clicks, region, band, start_date, end_date, granularity, sor
     # 计算加权平均
     def weighted_percentile(data, percents, sorter):
         data = data[sorter]
-        rank = percents * (len(data) - 1)
-        rank_low = np.floor(rank).astype(int)
-        rank_high = np.ceil(rank).astype(int)
-        weights_high = rank - rank_low
-        weights_low = 1 - weights_high
-        weighted_data = np.add(data[rank_low] * weights_low[:, np.newaxis], data[rank_high] * weights_high[:, np.newaxis])
-        return weighted_data.mean(axis=0)
+        num_points = len(data)
+        lower_percentile = percents[0] / 100.0 * (num_points - 1)
+        upper_percentile = percents[1] / 100.0 * (num_points - 1)
+
+        lower_index = int(np.floor(lower_percentile))
+        upper_index = int(np.ceil(upper_percentile))
+
+        weights = np.zeros(num_points)
+
+        if lower_index == upper_index:
+            weights[lower_index] = 1
+        else:
+            weights[lower_index] = upper_index - lower_percentile
+            weights[upper_index] = upper_percentile - lower_index
+            if upper_index - lower_index > 1:
+                weights[lower_index+1:upper_index] = 1
+
+        # 计算加权平均
+        weights /= np.sum(weights)
+        weighted_data = np.dot(data.T, weights)
+
+        return weighted_data
 
     # 按时间粒度聚合数据
     def get_percentile_row(x, sort_indicator, percentiles):
         sorter = np.argsort(x[sort_indicator].values)
-        weighted_data = weighted_percentile(x[numeric_cols].values, np.linspace(percentiles[0] / 100, percentiles[1] / 100, len(x)), sorter)
+        weighted_data = weighted_percentile(x[numeric_cols].values, [percentile_start, percentile_end], sorter)
         return pd.Series(weighted_data, index=numeric_cols)
 
     grouped = filtered_df.resample(freq).apply(lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end]))
 
-    # 打印调试信息
-    print("Filtered DataFrame head:", filtered_df.head())
-    print("Grouped DataFrame head:", grouped.head())
+    # 打印第一天的调试信息
+    if not grouped.empty:
+        print("第一天的数据:", grouped.iloc[0])
 
     # 创建多个图表
     graphs = []
