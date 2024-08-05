@@ -109,7 +109,7 @@ app.layout = html.Div([
 )
 def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, percentile_start, percentile_end):
     if percentile_start >= percentile_end:
-        return [[], ""]
+        return [[], "Error: 起始百分位必须小于结束百分位"]
 
     filtered_df = df.copy()
 
@@ -131,49 +131,83 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     filtered_df = filtered_df.set_index('utc_time')
 
     # 计算加权平均
-    def weighted_percentile(data, percents):
-        data = np.sort(data)
+    def weighted_percentile(data, percents, sorter):
+        data = data[sorter]
         num_points = len(data)
-
         lower_percentile = percents[0] / 100.0 * (num_points - 1)
         upper_percentile = percents[1] / 100.0 * (num_points - 1)
 
         lower_index = int(np.floor(lower_percentile))
         upper_index = int(np.ceil(upper_percentile))
 
-        if lower_index == upper_index:
-            weights = np.zeros(num_points)
-            weights[lower_index] = 1
-            print(f"weights: {weights}")
-            weighted_data = np.average(data, weights=weights)
-            return weighted_data
-
-        lower_weight = upper_index - lower_percentile
-        upper_weight = upper_percentile - lower_index
-
         weights = np.zeros(num_points)
-        weights[lower_index] = lower_weight
-        weights[upper_index] = upper_weight
-        if upper_index - lower_index > 1:
-            weights[lower_index+1:upper_index] = 1
 
-        weights /= np.sum(weights)
-        print(f"weights: {weights}")
+        if lower_index == upper_index:
+            weights[lower_index] = 1
+        else:
+            weights[lower_index] = upper_index - lower_percentile
+            weights[upper_index] = upper_percentile - lower_index
+            if upper_index - lower_index > 1:
+                weights[lower_index+1:upper_index] = 1
 
-        weighted_data = np.dot(data, weights)
+        weighted_data = np.average(data, weights=weights / np.sum(weights), axis=0)
+
         return weighted_data
+    def weighted_percentile(data, percents):
+        """
+        Calculate the weighted percentile of the pad_data.
+
+        Parameters:
+        pad_data (list or array): The input pad_data.
+        percents (list): A list with two elements, [start_percentile, end_percentile].
+
+        Returns:
+        float: The calculated weighted percentile.
+        """
+        data = np.sort(data)
+        num_points = len(data)
+        # 在数组的前后各补一个与起止相同的数
+        pad_data = np.pad(data, pad_width=(1, 1), mode='edge')
+
+        lower_percentile = percents[0] / num_points
+        upper_percentile = percents[1] / num_points
+
+
+        lower_floor = int(np.floor(lower_percentile))
+        upper_floor = int(np.floor(upper_percentile))
+        lower_ceil = int(np.ceil(lower_percentile))
+        upper_ceil = int(np.ceil(upper_percentile))
+
+        # 洛必达
+        if lower_floor == upper_floor:
+            if int(lower_percentile * 10) == lower_floor*10:
+                return (pad_data[lower_floor] + pad_data[lower_floor + 1]) / 2
+            return pad_data[lower_ceil]
+
+        # 两边的非完整段
+        lower_weight = lower_ceil - lower_percentile
+        upper_weight = upper_percentile - upper_floor
+        all_value = lower_weight * pad_data[lower_ceil] + upper_weight * pad_data[upper_floor + 1]
+
+        for index in range(lower_ceil+1, upper_floor+1):
+            all_value = all_value + pad_data[index]
+
+        weighted_data = all_value / (upper_percentile - lower_percentile)
+
+        return weighted_data
+
 
     # 按时间粒度聚合数据
     def get_percentile_row(x, sort_indicator, percentiles):
         sorter = np.argsort(x[sort_indicator].values)
-        weighted_data = weighted_percentile(x[sort_indicator].values, percentiles)
-        return weighted_data
+        weighted_data = weighted_percentile(x[numeric_cols].values, [percentile_start, percentile_end], sorter)
+        return pd.Series(weighted_data, index=numeric_cols)
 
     grouped = filtered_df.resample(freq).apply(lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end]))
 
-    # 打印第一天的调试信息
-    if not grouped.empty:
-        print("第一天的数据:", grouped.iloc[0])
+    # 打印调试信息
+    print("Filtered DataFrame head:", filtered_df.head())
+    print("Grouped DataFrame head:", grouped.head())
 
     # 创建多个图表
     graphs = []
