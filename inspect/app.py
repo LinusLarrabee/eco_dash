@@ -69,17 +69,17 @@ app.layout = html.Div([
             value='wan_throughput'
         ),
         html.Div([
-            html.Label("输入起始百分位："),
+            html.Label("选择百分位："),
             dcc.Input(
                 id='percentile-start',
                 type='number',
                 min=0,
                 max=100,
                 step=0.01,
-                value=40,
+                value=50,
                 style={'marginRight': '10px'}
             ),
-            html.Label("输入结束百分位："),
+            html.Label("到"),
             dcc.Input(
                 id='percentile-end',
                 type='number',
@@ -108,8 +108,8 @@ app.layout = html.Div([
      Input('percentile-end', 'value')]
 )
 def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, percentile_start, percentile_end):
-    if percentile_start >= percentile_end:
-        return [[], "Error: 起始百分位必须小于结束百分位"]
+    if int(np.floor(100 * percentile_start)) > int(np.floor(100 * percentile_end)):
+        return [[], "Error: 起始百分位必须小于或等于结束百分位"]
 
     filtered_df = df.copy()
 
@@ -167,7 +167,8 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     def get_percentile_row(x, sort_indicator, percentiles):
         sorter = np.argsort(x[sort_indicator].values)
         weighted_data = weighted_percentile(x[sort_indicator].values, [percentile_start, percentile_end])
-        return pd.Series(weighted_data, index=numeric_cols)
+        result = {col: round(weighted_data, 2) for col in numeric_cols}
+        return pd.Series(result)
 
     grouped = filtered_df.resample(freq).apply(lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end]))
 
@@ -180,7 +181,7 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     for col in numeric_cols:
         figure = {
             'data': [{'x': grouped.index, 'y': grouped[col], 'type': 'line', 'name': col}],
-            'layout': {'title': f'{col.capitalize()} for Percentile {percentile_start}% - {percentile_end}%'}
+            'layout': {'title': f'{col.capitalize()} for Percentile {percentile_start:.2f}% - {percentile_end:.2f}%'}
         }
         graphs.append(dcc.Graph(figure=figure))
 
