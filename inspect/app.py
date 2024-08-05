@@ -70,17 +70,25 @@ app.layout = html.Div([
             value='wan_throughput'
         ),
         html.Label("选择百分位："),
-        dcc.Slider(
+        dcc.RangeSlider(
             id='percentile-slider',
-            min=-10,
+            min=1,
             max=100,
             step=1,
-            value=40,
-            marks={-10: 'avg', 0: '0%', 10: '10%', 20: '20%', 30: '30%', 40: '40%', 50: '50%', 60: '60%', 70: '70%', 80: '80%', 90: '90%', 100: '100%'}
+            value=[20, 80],
+            marks={i: f'{i}%' for i in range(0, 101, 10)}
         ),
         html.Div([
-            html.Label("百分位："),
-            dcc.Input(id='percentile-input', type='number', value=40, min=-10, max=100, step=1, style={'width': '100px', 'marginLeft': '10px'}),
+            html.Label("当前百分位范围："),
+            dcc.Input(
+                id='percentile-input',
+                type='number',
+                value=80,
+                min=1,
+                max=100,
+                step=1,
+                style={'marginLeft': '10px'}
+            )
         ], style={'display': 'flex', 'alignItems': 'center', 'marginTop': '10px'})
     ], style={'display': 'flex', 'flexDirection': 'column', 'width': '20%', 'position': 'absolute', 'left': '10px', 'top': '10px'}),
     html.Div(id='graphs-container', style={'marginLeft': '25%'})
@@ -88,20 +96,16 @@ app.layout = html.Div([
 
 # 更新页面内容回调
 @app.callback(
-    [Output('percentile-slider', 'value'),
-     Output('graphs-container', 'children')],
+    [Output('graphs-container', 'children')],
     [Input('region-dropdown', 'value'),
      Input('band-dropdown', 'value'),
      Input('date-picker-range', 'start_date'),
      Input('date-picker-range', 'end_date'),
      Input('time-granularity-dropdown', 'value'),
      Input('sort-indicator-dropdown', 'value'),
-     Input('percentile-slider', 'value'),
-     Input('percentile-input', 'value')]
+     Input('percentile-slider', 'value')]
 )
-def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, slider_percentile, input_percentile):
-    percentile = input_percentile if input_percentile is not None else slider_percentile
-
+def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, percentiles):
     filtered_df = df.copy()
 
     if region != 'all':
@@ -121,13 +125,14 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     numeric_cols = filtered_df.select_dtypes(include=[np.number]).columns.tolist()
     filtered_df = filtered_df.set_index('utc_time')
 
-    if percentile == -10:
-        grouped = filtered_df.resample(freq).mean()
-        percentile_text = "平均值"
-    else:
-        # 按时间粒度聚合数据
-        grouped = filtered_df.resample(freq).apply(lambda x: x.loc[x[sort_indicator].rank(pct=True) <= percentile / 100.0].iloc[-1])
-        percentile_text = f"百分位 {percentile}%"
+    # 计算选择的百分位区间内的所有值的平均值
+    def compute_percentile_average(group, lower_percentile, upper_percentile):
+        ranked_group = group.sort_values(by=sort_indicator)
+        lower_bound = int(len(ranked_group) * (lower_percentile / 100.0))
+        upper_bound = int(len(ranked_group) * (upper_percentile / 100.0))
+        return ranked_group.iloc[lower_bound:upper_bound + 1].mean()
+
+    grouped = filtered_df.resample(freq).apply(lambda x: compute_percentile_average(x, percentiles[0], percentiles[1]))
 
     # 打印调试信息
     print("Filtered DataFrame head:", filtered_df.head())
@@ -138,11 +143,11 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     for col in numeric_cols:
         figure = {
             'data': [{'x': grouped.index, 'y': grouped[col], 'type': 'line', 'name': col}],
-            'layout': {'title': f'{col.capitalize()} - {percentile_text}'}
+            'layout': {'title': f'{col.capitalize()} - Percentile {percentiles[0]}% to {percentiles[1]}%'}
         }
         graphs.append(dcc.Graph(figure=figure))
 
-    return percentile, graphs
+    return [graphs]
 
 if __name__ == '__main__':
     app.run_server(debug=True, host='0.0.0.0')
