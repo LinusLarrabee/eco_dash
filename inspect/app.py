@@ -1,7 +1,7 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-from dash.dependencies import Input, Output, State
+from dash.dependencies import Input, Output
 import pandas as pd
 import numpy as np
 
@@ -38,13 +38,12 @@ app.layout = html.Div([
             ],
             value='all'
         ),
-        html.Label("选择时间范围：", style={'fontSize': '12px'}),
+        html.Label("选择时间范围："),
         dcc.DatePickerRange(
             id='date-picker-range',
             start_date=df['utc_time'].min().date(),
             end_date=df['utc_time'].max().date(),
-            display_format='YYYY-MM-DD',
-            style={'fontSize': '12px'}
+            display_format='YYYY-MM-DD'
         ),
         html.Label("选择时间粒度："),
         dcc.Dropdown(
@@ -70,33 +69,21 @@ app.layout = html.Div([
             value='wan_throughput'
         ),
         html.Label("选择百分位："),
-        dcc.RangeSlider(
+        dcc.Slider(
             id='percentile-slider',
-            min=1,
+            min=0,
             max=100,
             step=1,
-            value=[20, 80],
+            value=40,
             marks={i: f'{i}%' for i in range(0, 101, 10)}
-        ),
-        html.Div([
-            html.Label("当前百分位范围："),
-            dcc.Input(
-                id='percentile-input',
-                type='number',
-                value=80,
-                min=1,
-                max=100,
-                step=1,
-                style={'marginLeft': '10px'}
-            )
-        ], style={'display': 'flex', 'alignItems': 'center', 'marginTop': '10px'})
+        )
     ], style={'display': 'flex', 'flexDirection': 'column', 'width': '20%', 'position': 'absolute', 'left': '10px', 'top': '10px'}),
     html.Div(id='graphs-container', style={'marginLeft': '25%'})
 ])
 
 # 更新页面内容回调
 @app.callback(
-    [Output('graphs-container', 'children')],
+    Output('graphs-container', 'children'),
     [Input('region-dropdown', 'value'),
      Input('band-dropdown', 'value'),
      Input('date-picker-range', 'start_date'),
@@ -105,7 +92,7 @@ app.layout = html.Div([
      Input('sort-indicator-dropdown', 'value'),
      Input('percentile-slider', 'value')]
 )
-def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, percentiles):
+def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, percentile):
     filtered_df = df.copy()
 
     if region != 'all':
@@ -125,14 +112,8 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     numeric_cols = filtered_df.select_dtypes(include=[np.number]).columns.tolist()
     filtered_df = filtered_df.set_index('utc_time')
 
-    # 计算选择的百分位区间内的所有值的平均值
-    def compute_percentile_average(group, lower_percentile, upper_percentile):
-        ranked_group = group.sort_values(by=sort_indicator)
-        lower_bound = int(len(ranked_group) * (lower_percentile / 100.0))
-        upper_bound = int(len(ranked_group) * (upper_percentile / 100.0))
-        return ranked_group.iloc[lower_bound:upper_bound + 1].mean()
-
-    grouped = filtered_df.resample(freq).apply(lambda x: compute_percentile_average(x, percentiles[0], percentiles[1]))
+    # 按时间粒度聚合数据
+    grouped = filtered_df.resample(freq).apply(lambda x: x.loc[x[sort_indicator].rank(pct=True) <= percentile / 100.0].iloc[-1])
 
     # 打印调试信息
     print("Filtered DataFrame head:", filtered_df.head())
@@ -143,11 +124,11 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     for col in numeric_cols:
         figure = {
             'data': [{'x': grouped.index, 'y': grouped[col], 'type': 'line', 'name': col}],
-            'layout': {'title': f'{col.capitalize()} - Percentile {percentiles[0]}% to {percentiles[1]}%'}
+            'layout': {'title': f'{col.capitalize()} for Percentile {percentile}%'}
         }
         graphs.append(dcc.Graph(figure=figure))
 
-    return [graphs]
+    return graphs
 
 if __name__ == '__main__':
     app.run_server(debug=True, host='0.0.0.0')
