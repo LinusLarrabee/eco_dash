@@ -68,22 +68,24 @@ app.layout = html.Div([
             ],
             value='wan_throughput'
         ),
-        html.Label("选择百分位："),
-        dcc.Slider(
+        html.Label("选择百分位区间："),
+        dcc.RangeSlider(
             id='percentile-slider',
-            min=0,
+            min=1,
             max=100,
-            step=1,
-            value=40,
+            step=0.01,
+            value=[40, 60],
             marks={i: f'{i}%' for i in range(0, 101, 10)}
-        )
+        ),
+        html.Div(id='percentile-output')
     ], style={'display': 'flex', 'flexDirection': 'column', 'width': '20%', 'position': 'absolute', 'left': '10px', 'top': '10px'}),
     html.Div(id='graphs-container', style={'marginLeft': '25%'})
 ])
 
 # 更新页面内容回调
 @app.callback(
-    Output('graphs-container', 'children'),
+    [Output('graphs-container', 'children'),
+     Output('percentile-output', 'children')],
     [Input('region-dropdown', 'value'),
      Input('band-dropdown', 'value'),
      Input('date-picker-range', 'start_date'),
@@ -92,7 +94,7 @@ app.layout = html.Div([
      Input('sort-indicator-dropdown', 'value'),
      Input('percentile-slider', 'value')]
 )
-def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, percentile):
+def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, percentiles):
     filtered_df = df.copy()
 
     if region != 'all':
@@ -113,7 +115,10 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     filtered_df = filtered_df.set_index('utc_time')
 
     # 按时间粒度聚合数据
-    grouped = filtered_df.resample(freq).apply(lambda x: x.loc[x[sort_indicator].rank(pct=True) <= percentile / 100.0].iloc[-1])
+    grouped = filtered_df.resample(freq).apply(
+        lambda x: x.loc[(x[sort_indicator].rank(pct=True) >= percentiles[0] / 100.0) &
+                        (x[sort_indicator].rank(pct=True) <= percentiles[1] / 100.0), numeric_cols].mean()
+    )
 
     # 打印调试信息
     print("Filtered DataFrame head:", filtered_df.head())
@@ -124,11 +129,15 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     for col in numeric_cols:
         figure = {
             'data': [{'x': grouped.index, 'y': grouped[col], 'type': 'line', 'name': col}],
-            'layout': {'title': f'{col.capitalize()} for Percentile {percentile}%'}
+            'layout': {'title': f'{col.capitalize()} for Percentile {percentiles[0]}% - {percentiles[1]}%'}
         }
         graphs.append(dcc.Graph(figure=figure))
 
-    return graphs
+    # 计算选取的用户数据百分比
+    percentage_selected = (percentiles[1] - percentiles[0])
+    percentage_text = f'Selected Data Percentage: {percentage_selected:.2f}%'
+
+    return graphs, percentage_text
 
 if __name__ == '__main__':
     app.run_server(debug=True, host='0.0.0.0')
