@@ -1,7 +1,7 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import pandas as pd
 import numpy as np
 
@@ -68,15 +68,26 @@ app.layout = html.Div([
             ],
             value='wan_throughput'
         ),
-        html.Label("选择百分位区间："),
-        dcc.RangeSlider(
-            id='percentile-slider',
-            min=1,
+        html.Label("输入起始百分位："),
+        dcc.Input(
+            id='percentile-start',
+            type='number',
+            min=0,
             max=100,
             step=0.01,
-            value=[40, 60],
-            marks={i: f'{i}%' for i in range(0, 101, 10)}
+            value=40,
+            style={'marginRight': '10px'}
         ),
+        html.Label("输入结束百分位："),
+        dcc.Input(
+            id='percentile-end',
+            type='number',
+            min=0,
+            max=100,
+            step=0.01,
+            value=60
+        ),
+        html.Button('更新图表', id='update-button', n_clicks=0),
         html.Div(id='percentile-output')
     ], style={'display': 'flex', 'flexDirection': 'column', 'width': '20%', 'position': 'absolute', 'left': '10px', 'top': '10px'}),
     html.Div(id='graphs-container', style={'marginLeft': '25%'})
@@ -86,15 +97,17 @@ app.layout = html.Div([
 @app.callback(
     [Output('graphs-container', 'children'),
      Output('percentile-output', 'children')],
-    [Input('region-dropdown', 'value'),
-     Input('band-dropdown', 'value'),
-     Input('date-picker-range', 'start_date'),
-     Input('date-picker-range', 'end_date'),
-     Input('time-granularity-dropdown', 'value'),
-     Input('sort-indicator-dropdown', 'value'),
-     Input('percentile-slider', 'value')]
+    [Input('update-button', 'n_clicks')],
+    [State('region-dropdown', 'value'),
+     State('band-dropdown', 'value'),
+     State('date-picker-range', 'start_date'),
+     State('date-picker-range', 'end_date'),
+     State('time-granularity-dropdown', 'value'),
+     State('sort-indicator-dropdown', 'value'),
+     State('percentile-start', 'value'),
+     State('percentile-end', 'value')]
 )
-def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, percentiles):
+def update_graphs(n_clicks, region, band, start_date, end_date, granularity, sort_indicator, percentile_start, percentile_end):
     filtered_df = df.copy()
 
     if region != 'all':
@@ -114,11 +127,24 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     numeric_cols = filtered_df.select_dtypes(include=[np.number]).columns.tolist()
     filtered_df = filtered_df.set_index('utc_time')
 
+    # 计算加权平均
+    def weighted_percentile(data, percents, sorter):
+        data = data[sorter]
+        rank = percents * (len(data) - 1)
+        rank_low = np.floor(rank).astype(int)
+        rank_high = np.ceil(rank).astype(int)
+        weights_high = rank - rank_low
+        weights_low = 1 - weights_high
+        weighted_data = np.add(data[rank_low] * weights_low[:, np.newaxis], data[rank_high] * weights_high[:, np.newaxis])
+        return weighted_data.mean(axis=0)
+
     # 按时间粒度聚合数据
-    grouped = filtered_df.resample(freq).apply(
-        lambda x: x.loc[(x[sort_indicator].rank(pct=True) >= percentiles[0] / 100.0) &
-                        (x[sort_indicator].rank(pct=True) <= percentiles[1] / 100.0), numeric_cols].mean()
-    )
+    def get_percentile_row(x, sort_indicator, percentiles):
+        sorter = np.argsort(x[sort_indicator].values)
+        weighted_data = weighted_percentile(x[numeric_cols].values, np.linspace(percentiles[0] / 100, percentiles[1] / 100, len(x)), sorter)
+        return pd.Series(weighted_data, index=numeric_cols)
+
+    grouped = filtered_df.resample(freq).apply(lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end]))
 
     # 打印调试信息
     print("Filtered DataFrame head:", filtered_df.head())
@@ -129,12 +155,12 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     for col in numeric_cols:
         figure = {
             'data': [{'x': grouped.index, 'y': grouped[col], 'type': 'line', 'name': col}],
-            'layout': {'title': f'{col.capitalize()} for Percentile {percentiles[0]}% - {percentiles[1]}%'}
+            'layout': {'title': f'{col.capitalize()} for Percentile {percentile_start}% - {percentile_end}%'}
         }
         graphs.append(dcc.Graph(figure=figure))
 
     # 计算选取的用户数据百分比
-    percentage_selected = (percentiles[1] - percentiles[0])
+    percentage_selected = (percentile_end - percentile_start)
     percentage_text = f'Selected Data Percentage: {percentage_selected:.2f}%'
 
     return graphs, percentage_text
