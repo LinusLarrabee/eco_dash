@@ -105,7 +105,8 @@ app.layout = html.Div([
      Input('time-granularity-dropdown', 'value'),
      Input('sort-indicator-dropdown', 'value'),
      Input('percentile-start', 'value'),
-     Input('percentile-end', 'value')]
+     Input('percentile-end', 'value')],
+    prevent_initial_call=True
 )
 def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, percentile_start, percentile_end):
     if int(np.floor(100 * percentile_start)) > int(np.floor(100 * percentile_end)):
@@ -165,8 +166,8 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     # 按时间粒度聚合数据
     def get_percentile_row(x, sort_indicator, percentiles):
         sorter = np.argsort(x[sort_indicator].values)
-        weighted_data = weighted_percentile(x[sort_indicator].values, [percentile_start, percentile_end],sorter)
-        result = {col: round(weighted_data, 2) for col in numeric_cols}
+        weighted_values = {col: weighted_percentile(x[col].values, [percentile_start, percentile_end], sorter) for col in numeric_cols}
+        result = {col: round(weighted_values[col], 2) for col in numeric_cols}
         return pd.Series(result)
 
     grouped = filtered_df.resample(freq).apply(lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end]))
@@ -180,7 +181,7 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     for col in numeric_cols:
         figure = {
             'data': [{'x': grouped.index, 'y': grouped[col], 'type': 'line', 'name': col}],
-            'layout': {'title': f'{col.capitalize()} for Percentile {percentile_start:.2f}% - {percentile_end:.2f}%'}
+            'layout': {'title': f'{col.capitalize()} for {sort_indicator.capitalize()} {percentile_start:.2f}% - {percentile_end:.2f}%'}
         }
         graphs.append(dcc.Graph(figure=figure))
 
