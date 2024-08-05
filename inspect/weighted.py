@@ -27,7 +27,7 @@ def weighted_percentile(data, percents):
 
     # 洛必达
     if lower_floor == upper_floor:
-        if int(lower_percentile * 10) == lower_floor*10:
+        if upper_percentile - lower_percentile < 10e-8:
             return (pad_data[lower_floor] + pad_data[lower_floor + 1]) / 2
         return pad_data[lower_ceil]
 
@@ -49,10 +49,12 @@ data = [39, 39, 70, 71, 74, 78, 83, 83, 86, 98]
 # 定义不同百分位范围的测试用例
 test_cases = [
     # 洛必达数据
-    [95, 99],
-    [95, 95],
-    [100,100],
-    [90, 90],
+    # [95, 99],
+    # [95, 95],
+    # [100,100],
+    # [90, 90],
+    # [80, 90],
+    [50, 59],
     # 正常数据
     [90, 100],
     [82, 92],

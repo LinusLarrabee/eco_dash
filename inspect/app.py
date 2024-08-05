@@ -131,11 +131,10 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     filtered_df = filtered_df.set_index('utc_time')
 
     # 计算加权平均
-    def weighted_percentile(data, percents):
-        data = np.sort(data)
+    def weighted_percentile(data, percents, sorter):
         num_points = len(data)
         # 在数组的前后各补一个与起止相同的数
-        pad_data = np.pad(data, pad_width=(1, 1), mode='edge')
+        pad_data = np.pad(data[sorter], pad_width=(1, 1), mode='edge')
 
         lower_percentile = percents[0] / num_points
         upper_percentile = percents[1] / num_points
@@ -147,7 +146,7 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
 
         # 洛必达
         if lower_floor == upper_floor:
-            if int(lower_percentile * 10) == lower_floor * 10:
+            if upper_percentile - lower_percentile < 10e-8:
                 return (pad_data[lower_floor] + pad_data[lower_floor + 1]) / 2
             return pad_data[lower_ceil]
 
@@ -156,7 +155,7 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
         upper_weight = upper_percentile - upper_floor
         all_value = lower_weight * pad_data[lower_ceil] + upper_weight * pad_data[upper_floor + 1]
 
-        for index in range(lower_ceil + 1, upper_floor + 1):
+        for index in range(lower_ceil+1, upper_floor+1):
             all_value = all_value + pad_data[index]
 
         weighted_data = all_value / (upper_percentile - lower_percentile)
@@ -166,7 +165,7 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     # 按时间粒度聚合数据
     def get_percentile_row(x, sort_indicator, percentiles):
         sorter = np.argsort(x[sort_indicator].values)
-        weighted_data = weighted_percentile(x[sort_indicator].values, [percentile_start, percentile_end])
+        weighted_data = weighted_percentile(x[sort_indicator].values, [percentile_start, percentile_end],sorter)
         result = {col: round(weighted_data, 2) for col in numeric_cols}
         return pd.Series(result)
 
