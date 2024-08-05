@@ -2,10 +2,10 @@ import numpy as np
 
 def weighted_percentile(data, percents):
     """
-    Calculate the weighted percentile of the data.
+    Calculate the weighted percentile of the pad_data.
 
     Parameters:
-    data (list or array): The input data.
+    pad_data (list or array): The input pad_data.
     percents (list): A list with two elements, [start_percentile, end_percentile].
 
     Returns:
@@ -14,7 +14,7 @@ def weighted_percentile(data, percents):
     data = np.sort(data)
     num_points = len(data)
     # 在数组的前后各补一个与起止相同的数
-    data = np.pad(data, pad_width=(1, 1), mode='edge')
+    pad_data = np.pad(data, pad_width=(1, 1), mode='edge')
 
     lower_percentile = percents[0] / num_points
     upper_percentile = percents[1] / num_points
@@ -28,16 +28,16 @@ def weighted_percentile(data, percents):
     # 洛必达
     if lower_floor == upper_floor:
         if int(lower_percentile * 10) == lower_floor*10:
-            return (data[lower_floor]+data[lower_floor+1])/2
-        return data[lower_ceil]
+            return (pad_data[lower_floor] + pad_data[lower_floor + 1]) / 2
+        return pad_data[lower_ceil]
 
     # 两边的非完整段
     lower_weight = lower_ceil - lower_percentile
     upper_weight = upper_percentile - upper_floor
-    all_value = lower_weight * data[lower_ceil] + upper_weight * data[upper_floor+1]
+    all_value = lower_weight * pad_data[lower_ceil] + upper_weight * pad_data[upper_floor + 1]
 
     for index in range(lower_ceil+1, upper_floor+1):
-        all_value = all_value + data[index]
+        all_value = all_value + pad_data[index]
 
     weighted_data = all_value / (upper_percentile - lower_percentile)
 
