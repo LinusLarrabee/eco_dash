@@ -7,6 +7,20 @@ from app import app
 # 读取CSV数据
 df_1d = pd.read_csv('data/data_1d_avg.csv')
 
+def parse_intervals(interval_str):
+    try:
+        interval_str = interval_str.replace('(', '').replace(')', '').replace('[', '').replace(']', '')
+        intervals = []
+        for interval in interval_str.split(','):
+            if '-' in interval:
+                lower, upper = interval.split('-')
+                intervals.append((float(lower), float(upper)))
+            else:
+                intervals.append((float(interval), float(interval)))
+        return intervals
+    except Exception as e:
+        return None
+
 @app.callback(
     [Output('graphs-container-tab2', 'children'),
      Output('percentile-output-tab2', 'children')],
@@ -59,10 +73,8 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
     sliced_data = grouped.iloc[lower_idx:upper_idx]
 
     # 解析区间范围
-    intervals = []
-    try:
-        intervals = eval(intervals_input)
-    except:
+    intervals = parse_intervals(intervals_input)
+    if intervals is None:
         return [[], "Error: 无效的区间范围"]
 
     # 按区间统计
@@ -75,7 +87,7 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
     # 创建图表
     figure = {
         'data': [
-            {'x': list(interval_counts.keys()), 'y': list(interval_counts.values()), 'type': 'bar', 'name': 'Devices'}
+            {'x': [f"{lower}-{upper}" for lower, upper in interval_counts.keys()], 'y': list(interval_counts.values()), 'type': 'bar', 'name': 'Devices'}
         ],
         'layout': {
             'title': f'Device Distribution for {sort_indicator.capitalize()} Percentile {percentile_start}% - {percentile_end}%',
