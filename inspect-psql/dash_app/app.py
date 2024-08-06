@@ -44,7 +44,7 @@ app.layout = html.Div([
                 id='start-date-picker',
                 min_date_allowed=pd.to_datetime('2024-01-01'),
                 max_date_allowed=pd.to_datetime('2024-12-31'),
-                initial_visible_month=pd.to_datetime('2024-01-01'),
+                initial_visible_month=pd.to_datetime('2024-07-23'),
                 date=pd.to_datetime('2024-01-01').date(),
             ),
             dcc.Input(
