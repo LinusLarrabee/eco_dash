@@ -1,4 +1,4 @@
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 from dash import dcc, html
 import pandas as pd
 import numpy as np
@@ -20,9 +20,10 @@ df_1d = pd.read_csv('data/data_1d_avg.csv')
      Input('percentile-end-tab2', 'value'),
      Input('percentile-slider-tab2', 'value'),
      Input('num-intervals-dropdown-tab2', 'value')],
+    [State('intervals-input-tab2', 'value')],
     prevent_initial_call=True
 )
-def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, percentile_start, percentile_end, percentile_slider, num_intervals):
+def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, percentile_start, percentile_end, percentile_slider, num_intervals, intervals_input):
     # 确保百分位值与滑块值一致
     if [percentile_start, percentile_end] != percentile_slider:
         percentile_start, percentile_end = percentile_slider
@@ -59,17 +60,19 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
     upper_idx = int(np.ceil(num_points * (percentile_end / 100.0)))
     sliced_data = grouped.iloc[lower_idx:upper_idx]
 
-    # 生成默认区间
-    default_intervals = ','.join(generate_default_intervals(sliced_data[sort_indicator], num_intervals))
-
-    # 解析区间范围
-    intervals = parse_intervals(default_intervals)
-    if intervals is None:
-        return [[], "Error: 无效的区间范围"]
-
     graphs = []
     numeric_cols = sliced_data.select_dtypes(include=[np.number]).columns.tolist()
     for col in numeric_cols:
+        # 生成默认区间
+        min_val = np.floor(sliced_data[col].min())
+        max_val = np.ceil(sliced_data[col].max())
+        default_intervals = ','.join(generate_default_intervals(sliced_data[col], num_intervals))
+
+        # 解析区间范围
+        intervals = parse_intervals(default_intervals) if not intervals_input else parse_intervals(intervals_input)
+        if intervals is None:
+            return [[], "Error: 无效的区间范围"]
+
         # 按区间统计
         interval_counts = {}
         for lower, upper, include_lower, include_upper in intervals:

@@ -46,14 +46,17 @@ def parse_intervals(interval_str):
         return None
 
 def generate_default_intervals(data, num_intervals=5):
-    min_val = data.min()
-    max_val = data.max()
+    min_val = np.floor(data.min())
+    max_val = np.ceil(data.max())
     step = (max_val - min_val) / num_intervals
     intervals = []
 
     for i in range(num_intervals):
         lower = min_val + i * step
         upper = min_val + (i + 1) * step
+        if step >= 1:
+            lower = round(lower)
+            upper = round(upper)
         if i == 0:
             intervals.append(f'[{lower},{upper})')
         elif i == num_intervals - 1:
