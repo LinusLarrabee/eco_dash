@@ -1,4 +1,4 @@
-from dash.dependencies import Input, Output, State
+from dash.dependencies import Input, Output, State, ALL
 from dash import dcc, html
 import pandas as pd
 import numpy as np
@@ -20,10 +20,10 @@ df_1d = pd.read_csv('data/data_1d_avg.csv')
      Input('percentile-end-tab2', 'value'),
      Input('percentile-slider-tab2', 'value'),
      Input('num-intervals-dropdown-tab2', 'value')],
-    [State('intervals-input-tab2', 'value')],
+    [State({'type': 'intervals-input-tab2', 'index': ALL}, 'value')],
     prevent_initial_call=True
 )
-def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, percentile_start, percentile_end, percentile_slider, num_intervals, intervals_input):
+def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, percentile_start, percentile_end, percentile_slider, num_intervals, intervals_inputs):
     # 确保百分位值与滑块值一致
     if [percentile_start, percentile_end] != percentile_slider:
         percentile_start, percentile_end = percentile_slider
@@ -62,16 +62,20 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
 
     graphs = []
     numeric_cols = sliced_data.select_dtypes(include=[np.number]).columns.tolist()
-    for col in numeric_cols:
+    intervals_list = []
+    for i, col in enumerate(numeric_cols):
         # 生成默认区间
         min_val = np.floor(sliced_data[col].min())
         max_val = np.ceil(sliced_data[col].max())
         default_intervals = ','.join(generate_default_intervals(sliced_data[col], num_intervals))
 
-        # 解析区间范围
-        intervals = parse_intervals(default_intervals) if not intervals_input else parse_intervals(intervals_input)
+        # 使用用户提供的区间范围或默认区间范围
+        intervals_input = intervals_inputs[i] if intervals_inputs and i < len(intervals_inputs) and intervals_inputs[i] else default_intervals
+        intervals = parse_intervals(intervals_input)
         if intervals is None:
-            return [[], "Error: 无效的区间范围"]
+            return [[], f"Error: 无效的区间范围 {intervals_input}"]
+
+        intervals_list.append(intervals_input)
 
         # 按区间统计
         interval_counts = {}
@@ -106,8 +110,8 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
             dcc.Graph(figure=figure),
             html.Label(f'{col.capitalize()} Interval Range:'),
             dcc.Textarea(
-                id=f'intervals-input-tab2-{col}',
-                value=default_intervals,
+                id={'type': 'intervals-input-tab2', 'index': i},
+                value=intervals_input,
                 style={'width': '100%', 'height': '50px'}
             )
         ], style={'display': 'flex', 'flexDirection': 'column', 'marginBottom': '20px'}))

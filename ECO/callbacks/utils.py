@@ -3,42 +3,15 @@ import numpy as np
 def parse_intervals(interval_str):
     try:
         intervals = []
-        interval_parts = [interval.strip() for interval in interval_str.split(',')]
-        combined_intervals = []
-        i = 0
-        while i < len(interval_parts):
-            if i + 1 < len(interval_parts) and interval_parts[i + 1][0].isdigit():
-                combined_intervals.append(interval_parts[i] + ',' + interval_parts[i + 1])
-                i += 2
-            else:
-                combined_intervals.append(interval_parts[i])
-                i += 1
-
-        for interval in combined_intervals:
-            interval = interval.strip()
-            if interval[0] == '[':
-                include_lower = True
-            elif interval[0] == '(':
-                include_lower = False
-            else:
-                raise ValueError("Invalid interval format")
-
-            if interval[-1] == ']':
-                include_upper = True
-            elif interval[-1] == ')':
-                include_upper = False
-            else:
-                raise ValueError("Invalid interval format")
-
-            lower, upper = interval[1:-1].split(',')
-            if lower == '-inf':
-                lower = -np.inf
-            else:
-                lower = float(lower)
-            if upper == 'inf':
-                upper = np.inf
-            else:
-                upper = float(upper)
+        # 使用正则表达式匹配并分割区间字符串
+        import re
+        interval_pattern = re.compile(r'(\[|\()([^,]+),([^)\]]+)(\]|\))')
+        matches = interval_pattern.findall(interval_str)
+        for match in matches:
+            include_lower = match[0] == '['
+            lower = float(match[1])
+            upper = float(match[2])
+            include_upper = match[3] == ']'
             intervals.append((lower, upper, include_lower, include_upper))
         return intervals
     except Exception as e:
@@ -65,3 +38,28 @@ def generate_default_intervals(data, num_intervals=5):
             intervals.append(f'({lower},{upper})')
 
     return intervals
+
+# 测试用例
+if __name__ == "__main__":
+    # 测试 parse_intervals 函数
+    test_intervals = [
+        "[0,3),(-inf,0),(3,6],(6,9],(9,inf)",
+        "[-10,-5),(-5,0),(0,5),(5,10]",
+        "[0,1.5),(1.5,3.0),(3.0,4.5),(4.5,6.0]",
+        "[-206,-200),(-200,-193),(-193,-187]"
+    ]
+
+    for test in test_intervals:
+        parsed = parse_intervals(test)
+        print(f"Input: {test}\nOutput: {parsed}\n")
+
+    # 测试 generate_default_intervals 函数
+    test_data = np.array([-206, -200, -193, -187, -180])
+    num_intervals = 3
+    generated_intervals = generate_default_intervals(test_data, num_intervals)
+    print(f"Generated Intervals for {test_data} with {num_intervals} intervals:\n{generated_intervals}\n")
+
+    test_data = np.array([0, 1.5, 3.0, 4.5, 6.0])
+    num_intervals = 5
+    generated_intervals = generate_default_intervals(test_data, num_intervals)
+    print(f"Generated Intervals for {test_data} with {num_intervals} intervals:\n{generated_intervals}\n")
