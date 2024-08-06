@@ -9,16 +9,41 @@ df_1d = pd.read_csv('data/data_1d_avg.csv')
 
 def parse_intervals(interval_str):
     try:
-        interval_str = interval_str.replace('(', '').replace(')', '').replace('[', '').replace(']', '')
         intervals = []
-        for interval in interval_str.split(','):
-            if '-' in interval:
-                lower, upper = interval.split('-')
-                intervals.append((float(lower), float(upper)))
+        # 按逗号分隔并修剪空格
+        interval_parts = [interval.strip() for interval in interval_str.split(',')]
+        # 合并区间
+        combined_intervals = []
+        i = 0
+        while i < len(interval_parts):
+            if i + 1 < len(interval_parts) and interval_parts[i + 1][0].isdigit():
+                combined_intervals.append(interval_parts[i] + ',' + interval_parts[i + 1])
+                i += 2
             else:
-                intervals.append((float(interval), float(interval)))
+                combined_intervals.append(interval_parts[i])
+                i += 1
+
+        for interval in combined_intervals:
+            interval = interval.strip()
+            if interval[0] == '[':
+                include_lower = True
+            elif interval[0] == '(':
+                include_lower = False
+            else:
+                raise ValueError("Invalid interval format")
+
+            if interval[-1] == ']':
+                include_upper = True
+            elif interval[-1] == ')':
+                include_upper = False
+            else:
+                raise ValueError("Invalid interval format")
+
+            lower, upper = interval[1:-1].split(',')
+            intervals.append((float(lower), float(upper), include_lower, include_upper))
         return intervals
     except Exception as e:
+        print(f"Error parsing intervals: {e}")
         return None
 
 @app.callback(
@@ -79,15 +104,21 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
 
     # 按区间统计
     interval_counts = {}
-    for interval in intervals:
-        lower, upper = interval
-        count = ((sliced_data[sort_indicator] > lower) & (sliced_data[sort_indicator] <= upper)).sum()
-        interval_counts[interval] = count
+    for lower, upper, include_lower, include_upper in intervals:
+        if include_lower and include_upper:
+            count = ((sliced_data[sort_indicator] >= lower) & (sliced_data[sort_indicator] <= upper)).sum()
+        elif include_lower:
+            count = ((sliced_data[sort_indicator] >= lower) & (sliced_data[sort_indicator] < upper)).sum()
+        elif include_upper:
+            count = ((sliced_data[sort_indicator] > lower) & (sliced_data[sort_indicator] <= upper)).sum()
+        else:
+            count = ((sliced_data[sort_indicator] > lower) & (sliced_data[sort_indicator] < upper)).sum()
+        interval_counts[f"{lower} - {upper}"] = count
 
     # 创建图表
     figure = {
         'data': [
-            {'x': [f"{lower}-{upper}" for lower, upper in interval_counts.keys()], 'y': list(interval_counts.values()), 'type': 'bar', 'name': 'Devices'}
+            {'x': list(interval_counts.keys()), 'y': list(interval_counts.values()), 'type': 'bar', 'name': 'Devices'}
         ],
         'layout': {
             'title': f'Device Distribution for {sort_indicator.capitalize()} Percentile {percentile_start}% - {percentile_end}%',
