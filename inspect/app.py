@@ -26,7 +26,7 @@ app.layout = html.Div([
         html.Label("选择 Band："),
         dcc.Dropdown(
             id='band-dropdown',
-            value='all'
+            value=''
         ),
         html.Div([
             html.Label("选择起始时间："),
@@ -115,7 +115,7 @@ def set_band_options(selected_region):
         bands = df_15min['band'].unique()
     else:
         bands = df_15min[df_15min['region'] == selected_region]['band'].unique()
-    return [{'label': band, 'value': band} for band in bands] + [{'label': 'All', 'value': 'all'}]
+    return [{'label': band, 'value': band} for band in bands]
 
 @app.callback(
     [Output('graphs-container', 'children'),
@@ -182,7 +182,7 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
     if region != 'all':
         data = data[data['region'] == region]
 
-    if band != 'all':
+    if band:
         data = data[data['band'] == band]
 
     if data.empty:
@@ -202,8 +202,8 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
         # 在数组的前后各补一个与起止相同的数
         pad_data = np.pad(data[sorter], pad_width=(1, 1), mode='edge')
 
-        lower_percentile = percents[0] / 100 * num_points
-        upper_percentile = percents[1] / 100 * num_points
+        lower_percentile = percents[0] / num_points
+        upper_percentile = percents[1] / num_points
 
         lower_floor = int(np.floor(lower_percentile))
         upper_floor = int(np.floor(upper_percentile))
@@ -232,12 +232,12 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
     def get_percentile_row(x, sort_indicator, percentiles):
         sorter = np.argsort(x[sort_indicator].values)
         weighted_values = {col: weighted_percentile(x[col].values, [percentile_start, percentile_end], sorter) for col in numeric_cols}
-        result = {col: round(weighted_values[col], 2) for col in numeric_cols}
-        return pd.Series(result)
+        return pd.Series(weighted_values)
 
     grouped = data.resample(granularity).apply(lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end]))
 
     # 打印调试信息
+    print("Filtered DataFrame head:", data.head())
     print("Grouped DataFrame head:", grouped.head())
 
     # 创建多个图表
