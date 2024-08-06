@@ -1,7 +1,7 @@
-# 使用 Python 3.8 基础镜像
+# Use the official Python image from the Docker Hub
 FROM python:3.8-slim
 
-# 设置工作目录
+# Set the working directory in the container
 WORKDIR /app
 
 # 复制 requirements.txt 到工作目录
@@ -10,11 +10,11 @@ COPY requirements.txt .
 # 安装依赖并使用国内镜像源
 RUN pip install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 
-# 复制项目文件到工作目录
+# Copy the rest of the working directory contents into the container
 COPY . .
 
-# 暴露应用端口
+# Expose port 8050
 EXPOSE 8050
 
-# 启动应用
-CMD ["python", "app.py"]
+# Run the application
+CMD ["python", "index.py"]
