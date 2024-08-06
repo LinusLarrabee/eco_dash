@@ -55,29 +55,20 @@ def parse_intervals(interval_str):
         return None
 
 def generate_default_intervals(data, num_intervals=5):
-    min_val = data.min()
-    max_val = data.max()
-    step = (max_val - min_val) / num_intervals
+    min_val = int(data.min())
+    max_val = int(data.max())
+    step = (max_val - min_val) // num_intervals
     intervals = []
-
-    # 处理负无穷到最小值的区间
-    intervals.append(f'(-inf,{min_val}]')
 
     for i in range(num_intervals):
         lower = min_val + i * step
         upper = min_val + (i + 1) * step
-        if step >= 1:
-            lower = round(lower)
-            upper = round(upper)
         if i == 0:
             intervals.append(f'[{lower},{upper})')
         elif i == num_intervals - 1:
             intervals.append(f'({lower},{upper}]')
         else:
-            intervals.append(f'({lower},{upper}]')
-
-    # 处理最大值到正无穷的区间
-    intervals.append(f'({max_val},inf)')
+            intervals.append(f'({lower},{upper})')
 
     return intervals
 
@@ -146,14 +137,19 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
         # 按区间统计
         interval_counts = {}
         for lower, upper, include_lower, include_upper in intervals:
-            if include_lower and include_upper:
-                count = ((sliced_data[col] >= lower) & (sliced_data[col] <= upper)).sum()
-            elif include_lower:
-                count = ((sliced_data[col] >= lower) & (sliced_data[col] < upper)).sum()
-            elif include_upper:
-                count = ((sliced_data[col] > lower) & (sliced_data[col] <= upper)).sum()
+            if lower == -np.inf:
+                count = (sliced_data[col] <= upper).sum() if include_upper else (sliced_data[col] < upper).sum()
+            elif upper == np.inf:
+                count = (sliced_data[col] >= lower).sum() if include_lower else (sliced_data[col] > lower).sum()
             else:
-                count = ((sliced_data[col] > lower) & (sliced_data[col] < upper)).sum()
+                if include_lower and include_upper:
+                    count = ((sliced_data[col] >= lower) & (sliced_data[col] <= upper)).sum()
+                elif include_lower:
+                    count = ((sliced_data[col] >= lower) & (sliced_data[col] < upper)).sum()
+                elif include_upper:
+                    count = ((sliced_data[col] > lower) & (sliced_data[col] <= upper)).sum()
+                else:
+                    count = ((sliced_data[col] > lower) & (sliced_data[col] < upper)).sum()
             interval_counts[f"{lower} {'[' if include_lower else '('}{','}{']' if include_upper else ')'} {upper}"] = count
 
         # 创建图表
