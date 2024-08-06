@@ -1,7 +1,7 @@
 from dash.dependencies import Input, Output
 from dash import dcc, html
 import pandas as pd
-import numpy as np  # 导入 numpy 模块
+import numpy as np
 from app import app
 from .utils import parse_intervals, generate_default_intervals
 
@@ -10,8 +10,7 @@ df_1d = pd.read_csv('data/data_1d_avg.csv')
 
 @app.callback(
     [Output('graphs-container-tab2', 'children'),
-     Output('percentile-output-tab2', 'children'),
-     Output('intervals-input-tab2', 'value')],
+     Output('percentile-output-tab2', 'children')],
     [Input('region-dropdown-tab2', 'value'),
      Input('band-dropdown-tab2', 'value'),
      Input('date-picker-range-tab2', 'start_date'),
@@ -20,16 +19,16 @@ df_1d = pd.read_csv('data/data_1d_avg.csv')
      Input('percentile-start-tab2', 'value'),
      Input('percentile-end-tab2', 'value'),
      Input('percentile-slider-tab2', 'value'),
-     Input('intervals-input-tab2', 'value')],
+     Input('num-intervals-dropdown-tab2', 'value')],
     prevent_initial_call=True
 )
-def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, percentile_start, percentile_end, percentile_slider, intervals_input):
+def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, percentile_start, percentile_end, percentile_slider, num_intervals):
     # 确保百分位值与滑块值一致
     if [percentile_start, percentile_end] != percentile_slider:
         percentile_start, percentile_end = percentile_slider
 
     if int(np.floor(100 * percentile_start)) > int(np.floor(100 * percentile_end)):
-        return [[], "Error: 起始百分位必须小于或等于结束百分位", ""]
+        return [[], "Error: 起始百分位必须小于或等于结束百分位"]
 
     # 解析起始时间和结束时间
     start_datetime = pd.to_datetime(start_date)
@@ -47,7 +46,7 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
         data = data[data['band'] == band]
 
     if data.empty:
-        return [[], "", ""]
+        return [[], ""]
 
     # 按用户家庭计算指标
     grouped = data.groupby(['region', 'band', 'utc_time']).agg(
@@ -60,10 +59,13 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
     upper_idx = int(np.ceil(num_points * (percentile_end / 100.0)))
     sliced_data = grouped.iloc[lower_idx:upper_idx]
 
+    # 生成默认区间
+    default_intervals = ','.join(generate_default_intervals(sliced_data[sort_indicator], num_intervals))
+
     # 解析区间范围
-    intervals = parse_intervals(intervals_input)
+    intervals = parse_intervals(default_intervals)
     if intervals is None:
-        return [[], "Error: 无效的区间范围", intervals_input]
+        return [[], "Error: 无效的区间范围"]
 
     graphs = []
     numeric_cols = sliced_data.select_dtypes(include=[np.number]).columns.tolist()
@@ -102,7 +104,7 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
             html.Label(f'{col.capitalize()} Interval Range:'),
             dcc.Textarea(
                 id=f'intervals-input-tab2-{col}',
-                value=intervals_input,
+                value=default_intervals,
                 style={'width': '100%', 'height': '50px'}
             )
         ], style={'display': 'flex', 'flexDirection': 'column', 'marginBottom': '20px'}))
@@ -111,7 +113,7 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
     percentage_selected = (percentile_end - percentile_start)
     percentage_text = f'Selected Data Percentage: {percentage_selected:.2f}%'
 
-    return graphs, percentage_text, intervals_input
+    return graphs, percentage_text
 
 @app.callback(
     [Output('percentile-start-tab2', 'value'),

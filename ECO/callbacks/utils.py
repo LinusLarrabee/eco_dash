@@ -46,9 +46,9 @@ def parse_intervals(interval_str):
         return None
 
 def generate_default_intervals(data, num_intervals=5):
-    min_val = int(data.min())
-    max_val = int(data.max())
-    step = (max_val - min_val) // num_intervals
+    min_val = data.min()
+    max_val = data.max()
+    step = (max_val - min_val) / num_intervals
     intervals = []
 
     for i in range(num_intervals):
