@@ -1,7 +1,10 @@
+import numpy as np
+
+
 def parse_intervals(interval_str):
     try:
         intervals = []
-        # 按逗号分隔并修剪空格
+        # 拆分整个字符串为单个区间
         interval_parts = [interval.strip() for interval in interval_str.split(',')]
         # 合并区间
         combined_intervals = []
@@ -31,7 +34,15 @@ def parse_intervals(interval_str):
                 raise ValueError("Invalid interval format")
 
             lower, upper = interval[1:-1].split(',')
-            intervals.append((float(lower), float(upper), include_lower, include_upper))
+            if lower == '-inf':
+                lower = -np.inf
+            else:
+                lower = float(lower)
+            if upper == 'inf':
+                upper = np.inf
+            else:
+                upper = float(upper)
+            intervals.append((lower, upper, include_lower, include_upper))
         return intervals
     except Exception as e:
         print(f"Error parsing intervals: {e}")
@@ -44,7 +55,7 @@ def test_parse_intervals():
         "[0,10]",
         "(0,10)",
         "[0,10)",
-        "(0,10]",
+        "(-inf,10]",
         "(0.5,5.5]",
         "[0.5,5.5)",
         "invalid",

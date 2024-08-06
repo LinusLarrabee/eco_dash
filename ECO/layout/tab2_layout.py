@@ -2,7 +2,6 @@ import pandas as pd
 from dash import dcc, html
 
 layout = html.Div([
-    html.H1('Tab 2 Content', style={'textAlign': 'center'}),
     html.Div([
         html.Div([
             html.Label("选择 Region："),
