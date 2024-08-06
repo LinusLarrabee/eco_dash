@@ -1,76 +1,12 @@
 from dash.dependencies import Input, Output
-from dash import dcc
+from dash import dcc, html
 import pandas as pd
-import numpy as np
+import numpy as np  # 导入 numpy 模块
 from app import app
+from .utils import parse_intervals, generate_default_intervals
 
 # 读取CSV数据
 df_1d = pd.read_csv('data/data_1d_avg.csv')
-
-def parse_intervals(interval_str):
-    try:
-        intervals = []
-        # 拆分整个字符串为单个区间
-        interval_parts = [interval.strip() for interval in interval_str.split(',')]
-        # 合并区间
-        combined_intervals = []
-        i = 0
-        while i < len(interval_parts):
-            if i + 1 < len(interval_parts) and interval_parts[i + 1][0].isdigit():
-                combined_intervals.append(interval_parts[i] + ',' + interval_parts[i + 1])
-                i += 2
-            else:
-                combined_intervals.append(interval_parts[i])
-                i += 1
-
-        for interval in combined_intervals:
-            interval = interval.strip()
-            if interval[0] == '[':
-                include_lower = True
-            elif interval[0] == '(':
-                include_lower = False
-            else:
-                raise ValueError("Invalid interval format")
-
-            if interval[-1] == ']':
-                include_upper = True
-            elif interval[-1] == ')':
-                include_upper = False
-            else:
-                raise ValueError("Invalid interval format")
-
-            lower, upper = interval[1:-1].split(',')
-            if lower == '-inf':
-                lower = -np.inf
-            else:
-                lower = float(lower)
-            if upper == 'inf':
-                upper = np.inf
-            else:
-                upper = float(upper)
-            intervals.append((lower, upper, include_lower, include_upper))
-        return intervals
-    except Exception as e:
-        print(f"Error parsing intervals: {e}")
-        return None
-
-def generate_default_intervals(data, num_intervals=5):
-    min_val = int(data.min())
-    max_val = int(data.max())
-    step = (max_val - min_val) // num_intervals
-    intervals = []
-
-    for i in range(num_intervals):
-        lower = min_val + i * step
-        upper = min_val + (i + 1) * step
-        if i == 0:
-            intervals.append(f'[{lower},{upper})')
-        elif i == num_intervals - 1:
-            intervals.append(f'({lower},{upper}]')
-        else:
-            intervals.append(f'({lower},{upper})')
-
-    return intervals
 
 @app.callback(
     [Output('graphs-container-tab2', 'children'),
@@ -83,10 +19,11 @@ def generate_default_intervals(data, num_intervals=5):
      Input('sort-indicator-dropdown-tab2', 'value'),
      Input('percentile-start-tab2', 'value'),
      Input('percentile-end-tab2', 'value'),
-     Input('percentile-slider-tab2', 'value')],
+     Input('percentile-slider-tab2', 'value'),
+     Input('intervals-input-tab2', 'value')],
     prevent_initial_call=True
 )
-def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, percentile_start, percentile_end, percentile_slider):
+def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, percentile_start, percentile_end, percentile_slider, intervals_input):
     # 确保百分位值与滑块值一致
     if [percentile_start, percentile_end] != percentile_slider:
         percentile_start, percentile_end = percentile_slider
@@ -114,7 +51,7 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
 
     # 按用户家庭计算指标
     grouped = data.groupby(['region', 'band', 'utc_time']).agg(
-        {sort_indicator: 'sum'}).reset_index()
+        {col: 'sum' for col in data.columns if col not in ['utc_time', 'region', 'band']}).reset_index()
     grouped = grouped.sort_values(by=sort_indicator)
 
     # 计算百分位
@@ -122,9 +59,6 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
     lower_idx = int(np.floor(num_points * (percentile_start / 100.0)))
     upper_idx = int(np.ceil(num_points * (percentile_end / 100.0)))
     sliced_data = grouped.iloc[lower_idx:upper_idx]
-
-    # 生成默认区间
-    intervals_input = ','.join(generate_default_intervals(sliced_data[sort_indicator]))
 
     # 解析区间范围
     intervals = parse_intervals(intervals_input)
@@ -150,7 +84,7 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
                     count = ((sliced_data[col] > lower) & (sliced_data[col] <= upper)).sum()
                 else:
                     count = ((sliced_data[col] > lower) & (sliced_data[col] < upper)).sum()
-            interval_counts[f"({lower},{upper})" if include_lower else f"({lower},{upper}"] = count
+            interval_counts[f"{lower} {'[' if include_lower else '('}{','}{']' if include_upper else ')'} {upper}"] = count
 
         # 创建图表
         figure = {
@@ -163,7 +97,15 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
                 'yaxis': {'title': 'Count'}
             }
         }
-        graphs.append(dcc.Graph(figure=figure))
+        graphs.append(html.Div([
+            dcc.Graph(figure=figure),
+            html.Label(f'{col.capitalize()} Interval Range:'),
+            dcc.Textarea(
+                id=f'intervals-input-tab2-{col}',
+                value=intervals_input,
+                style={'width': '100%', 'height': '50px'}
+            )
+        ], style={'display': 'flex', 'flexDirection': 'column', 'marginBottom': '20px'}))
 
     # 计算选取的用户数据百分比
     percentage_selected = (percentile_end - percentile_start)

@@ -1,12 +1,9 @@
 import numpy as np
 
-
 def parse_intervals(interval_str):
     try:
         intervals = []
-        # 拆分整个字符串为单个区间
         interval_parts = [interval.strip() for interval in interval_str.split(',')]
-        # 合并区间
         combined_intervals = []
         i = 0
         while i < len(interval_parts):
@@ -48,24 +45,20 @@ def parse_intervals(interval_str):
         print(f"Error parsing intervals: {e}")
         return None
 
-def test_parse_intervals():
-    test_cases = [
-        "[0,3],(3,6],(6,9]",
-        "[1.5,3.5],[4.5,6.5) , (7.5,9.5]",
-        "[0,10]",
-        "(0,10)",
-        "[0,inf)",
-        "(-inf,10]",
-        "(0.5,5.5]",
-        "[0.5,5.5)",
-        "invalid",
-        "[0,3,(3,6],(6,9]",
-        "(3,6], [0,3]",
-    ]
+def generate_default_intervals(data, num_intervals=5):
+    min_val = int(data.min())
+    max_val = int(data.max())
+    step = (max_val - min_val) // num_intervals
+    intervals = []
 
-    for test in test_cases:
-        result = parse_intervals(test)
-        print(f"Input: {test}\nOutput: {result}\n")
+    for i in range(num_intervals):
+        lower = min_val + i * step
+        upper = min_val + (i + 1) * step
+        if i == 0:
+            intervals.append(f'[{lower},{upper})')
+        elif i == num_intervals - 1:
+            intervals.append(f'({lower},{upper}]')
+        else:
+            intervals.append(f'({lower},{upper})')
 
-if __name__ == "__main__":
-    test_parse_intervals()
+    return intervals
