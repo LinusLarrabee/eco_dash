@@ -2,10 +2,7 @@ import pandas as pd
 from dash import dcc, html
 
 layout = html.Div([
-    html.H1('Tab 1 Content'),
-    # Tab 1 specific layout
     html.Div([
-        dcc.Location(id='url', refresh=False),
         html.Div([
             html.Label("选择 Region："),
             dcc.Dropdown(
@@ -15,8 +12,10 @@ layout = html.Div([
                     {'label': 'USE1', 'value': 'use1'},
                     {'label': 'EUW1', 'value': 'euw1'}
                 ],
-                value='aps1'
+                value='aps1',
+                style={'width': '100%'}
             ),
+            html.Br(),  # 添加间距
             html.Label("选择 Band："),
             dcc.Dropdown(
                 id='band-dropdown',
@@ -25,8 +24,10 @@ layout = html.Div([
                     {'label': '5G', 'value': '5g'},
                     {'label': '6G', 'value': '6g'}
                 ],
-                value='2.4g'
+                value='2.4g',
+                style={'width': '100%'}
             ),
+            html.Br(),  # 添加间距
             html.Label("选择时间粒度："),
             dcc.Dropdown(
                 id='time-granularity-dropdown',
@@ -36,8 +37,10 @@ layout = html.Div([
                     {'label': '1 day', 'value': '1d'},
                     {'label': '7 days', 'value': '7d'}
                 ],
-                value='15min'
+                value='15min',
+                style={'width': '100%'}
             ),
+            html.Br(),  # 添加间距
             html.Label("选择起始日期："),
             dcc.DatePickerSingle(
                 id='start-date-picker',
@@ -46,6 +49,7 @@ layout = html.Div([
                 initial_visible_month=pd.to_datetime('2024-07-23'),
                 date=pd.to_datetime('2024-07-23').date(),
             ),
+            html.Br(),  # 添加间距
             html.Div([
                 html.Label("选择组别："),
                 dcc.Input(
@@ -63,6 +67,7 @@ layout = html.Div([
                     style={'marginLeft': '10px'}
                 )
             ], style={'display': 'flex', 'alignItems': 'center'}),
+            html.Br(),  # 添加间距
             html.Label("选择排序指标："),
             dcc.Dropdown(
                 id='sort-indicator-dropdown',
@@ -75,8 +80,10 @@ layout = html.Div([
                     {'label': 'Noise', 'value': 'noise'},
                     {'label': 'Packet Error Rate', 'value': 'packet_error_rate'}
                 ],
-                value='wan_throughput'
+                value='wan_throughput',
+                style={'width': '100%'}
             ),
+            html.Br(),  # 添加间距
             html.Label("选择百分位："),
             html.Div([
                 dcc.Input(
@@ -101,6 +108,7 @@ layout = html.Div([
                     style={'marginLeft': '10px'}
                 )
             ], style={'display': 'flex', 'alignItems': 'center'}),
+            html.Br(),  # 添加间距
             dcc.RangeSlider(
                 id='percentile-slider',
                 min=0,
@@ -110,7 +118,7 @@ layout = html.Div([
                 marks={i: str(i) for i in range(0, 101, 10)}
             ),
             html.Div(id='percentile-output')
-        ], style={'display': 'flex', 'flexDirection': 'column', 'width': '25%', 'position': 'absolute', 'left': '10px', 'top': '10px'}),
-        html.Div(id='graphs-container', style={'marginLeft': '30%'})
-    ])
+        ], style={'flex': '1', 'padding': '20px'}),  # 左侧布局
+        html.Div(id='graphs-container', style={'flex': '3', 'padding': '20px'})  # 右侧布局
+    ], style={'display': 'flex', 'flexDirection': 'row'})  # 设置为左右布局
 ])

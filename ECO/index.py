@@ -17,9 +17,9 @@ app.layout = html.Div([
               Input('tabs', 'value'))
 def render_content(tab):
     if tab == 'tab1':
-        return tab1_layout.layout
+        return tab1_layout
     elif tab == 'tab2':
-        return tab2_layout.layout
+        return tab2_layout
 
 if __name__ == '__main__':
     app.run_server(debug=True, host='0.0.0.0', port=8050)

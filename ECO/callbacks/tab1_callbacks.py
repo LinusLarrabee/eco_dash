@@ -1,8 +1,8 @@
 from dash.dependencies import Input, Output
-from app import app
+from dash import dcc
 import pandas as pd
 import numpy as np
-from layout.tab1_layout import layout
+from app import app
 
 # 读取CSV数据
 df_15min = pd.read_csv('data/data_15min.csv')
@@ -82,8 +82,6 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
 
     # 计算加权平均
     def weighted_percentile(data, percents, sorter):
-        print(f"Data: {data}")
-        print(f"Percents: {percents}")
 
         num_points = len(data)
         pad_data = np.pad(data[sorter], pad_width=(1, 1), mode='edge')
