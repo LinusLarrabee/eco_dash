@@ -6,7 +6,7 @@ import pandas as pd
 # 定义数据生成的范围和规律
 regions = ['aps1', 'use1', 'euw1']
 bands = ['2.4g', '5g', '6g']
-deviceids = [f'd{i}' for i in range(1, 7)]  # 生成d1到d10
+deviceids = [f'd{i}' for i in range(1, 11)]  # 生成d1到d10
 start_date = datetime.now() - timedelta(days=15)
 end_date = datetime.now()
 interval = timedelta(minutes=15)  # 每15分钟生成一条数据
