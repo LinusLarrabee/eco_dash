@@ -5,12 +5,13 @@ from dash.dependencies import Input, Output, State
 import pandas as pd
 import numpy as np
 
+# 读取CSV数据
+df_15min = pd.read_csv('data_15min.csv')
+df_1h = pd.read_csv('data_1h_avg.csv')
+df_1d = pd.read_csv('data_1d_avg.csv')
+
 # 创建 Dash 应用
 app = dash.Dash(__name__)
-
-# 读取数据
-df = pd.read_csv('data.csv')
-df['utc_time'] = pd.to_datetime(df['utc_time'])
 
 # 定义页面布局
 app.layout = html.Div([
@@ -19,33 +20,22 @@ app.layout = html.Div([
         html.Label("选择 Region："),
         dcc.Dropdown(
             id='region-dropdown',
-            options=[
-                {'label': 'All', 'value': 'all'},
-                {'label': 'use1', 'value': 'use1'},
-                {'label': 'aps1', 'value': 'aps1'},
-                {'label': 'euw1', 'value': 'euw1'}
-            ],
+            options=[{'label': region, 'value': region} for region in sorted(df_15min['region'].unique())] + [{'label': 'All', 'value': 'all'}],
             value='all'
         ),
         html.Label("选择 Band："),
         dcc.Dropdown(
             id='band-dropdown',
-            options=[
-                {'label': 'All', 'value': 'all'},
-                {'label': '2.4g', 'value': '2.4g'},
-                {'label': '5g', 'value': '5g'},
-                {'label': '6g', 'value': '6g'}
-            ],
             value='all'
         ),
         html.Div([
             html.Label("选择起始时间："),
             dcc.DatePickerSingle(
                 id='start-date-picker',
-                min_date_allowed=df['utc_time'].min().date(),
-                max_date_allowed=df['utc_time'].max().date(),
-                initial_visible_month=df['utc_time'].min().date(),
-                date=df['utc_time'].min().date(),
+                min_date_allowed=pd.to_datetime('2024-01-01'),
+                max_date_allowed=pd.to_datetime('2024-12-31'),
+                initial_visible_month=pd.to_datetime('2024-01-01'),
+                date=pd.to_datetime('2024-01-01').date(),
             ),
             dcc.Input(
                 id='start-time-input',
@@ -67,12 +57,12 @@ app.layout = html.Div([
         dcc.Dropdown(
             id='time-granularity-dropdown',
             options=[
-                {'label': '15 minutes', 'value': '15T'},
-                {'label': '1 hour', 'value': 'H'},
-                {'label': '1 day', 'value': 'D'},
-                {'label': '7 days', 'value': '7D'}
+                {'label': '15 minutes', 'value': '15min'},
+                {'label': '1 hour', 'value': '1h'},
+                {'label': '1 day', 'value': '1d'},
+                {'label': '7 days', 'value': '7d'}
             ],
-            value='15T'
+            value='15min'
         ),
         html.Label("选择排序指标："),
         dcc.Dropdown(
@@ -95,7 +85,7 @@ app.layout = html.Div([
                 type='number',
                 min=0,
                 max=100,
-                step=0.01,
+                step=1,
                 value=50,
                 debounce=True,
                 style={'marginRight': '10px'}
@@ -106,7 +96,7 @@ app.layout = html.Div([
                 type='number',
                 min=0,
                 max=100,
-                step=0.01,
+                step=1,
                 value=60,
                 debounce=True
             )
@@ -116,10 +106,21 @@ app.layout = html.Div([
     html.Div(id='graphs-container', style={'marginLeft': '30%'})
 ])
 
-# 更新页面内容回调
+@app.callback(
+    Output('band-dropdown', 'options'),
+    Input('region-dropdown', 'value')
+)
+def set_band_options(selected_region):
+    if selected_region == 'all':
+        bands = df_15min['band'].unique()
+    else:
+        bands = df_15min[df_15min['region'] == selected_region]['band'].unique()
+    return [{'label': band, 'value': band} for band in bands] + [{'label': 'All', 'value': 'all'}]
+
 @app.callback(
     [Output('graphs-container', 'children'),
-     Output('percentile-output', 'children')],
+     Output('percentile-output', 'children'),
+     Output('start-time-input', 'style')],
     [Input('region-dropdown', 'value'),
      Input('band-dropdown', 'value'),
      Input('start-date-picker', 'date'),
@@ -134,45 +135,66 @@ app.layout = html.Div([
 def update_graphs(region, band, start_date, start_time, groups, granularity, sort_indicator, percentile_start, percentile_end):
     print(f"Inputs - region: {region}, band: {band}, start_date: {start_date}, start_time: {start_time}, groups: {groups}, granularity: {granularity}, sort_indicator: {sort_indicator}, percentile_start: {percentile_start}, percentile_end: {percentile_end}")
     if int(np.floor(100 * percentile_start)) > int(np.floor(100 * percentile_end)):
-        return [[], "Error: 起始百分位必须小于或等于结束百分位"]
+        return [[], "Error: 起始百分位必须小于或等于结束百分位", {}]
 
-    filtered_df = df.copy()
-
-    if region != 'all':
-        filtered_df = filtered_df[filtered_df['region'] == region]
-
-    if band != 'all':
-        filtered_df = filtered_df[filtered_df['band'] == band]
+    # 控制时间输入框的显示
+    if granularity in ['7d', '1d']:
+        time_input_style = {'display': 'none'}
+    else:
+        time_input_style = {'display': 'block', 'marginLeft': '10px'}
 
     # 解析起始时间和日期
     try:
         start_datetime = pd.to_datetime(f"{start_date} {start_time}")
         print(f"Parsed start_datetime: {start_datetime}")
     except Exception as e:
-        return [[], f"Error: 无法解析起始时间和日期 - {str(e)}"]
+        return [[], f"Error: 无法解析起始时间和日期 - {str(e)}", time_input_style]
 
     try:
-        if granularity == '7D':
+        if granularity == '7d':
             end_datetime = start_datetime + pd.Timedelta(days=7 * groups)
-        elif granularity == '15T':
+        elif granularity == '15min':
             end_datetime = start_datetime + pd.Timedelta(minutes=15 * groups)
-        elif granularity == 'H':
+        elif granularity == '1h':
             end_datetime = start_datetime + pd.Timedelta(hours=groups)
-        elif granularity == 'D':
+        elif granularity == '1d':
             end_datetime = start_datetime + pd.Timedelta(days=groups)
         else:
             raise ValueError("Invalid granularity")
         print(f"Calculated end_datetime: {end_datetime}")
     except Exception as e:
-        return [[], f"Error: 无法计算结束时间 - {str(e)}"]
+        return [[], f"Error: 无法计算结束时间 - {str(e)}", time_input_style]
+
+    # 根据时间粒度选择对应的数据源
+    if granularity == '15min':
+        data = df_15min.copy()
+    elif granularity == '1h':
+        data = df_1h.copy()
+    elif granularity == '1d':
+        data = df_1d.copy()
+    elif granularity == '7d':
+        data = df_1d.copy()  # 7d的聚合数据从1d数据聚合
 
     # 过滤数据
-    filtered_df = filtered_df[(filtered_df['utc_time'] >= start_datetime) & (filtered_df['utc_time'] <= end_datetime)]
-    print(f"Filtered DataFrame shape: {filtered_df.shape}")
+    data['utc_time'] = pd.to_datetime(data['utc_time'])
+    data = data[(data['utc_time'] >= start_datetime) & (data['utc_time'] <= end_datetime)]
+
+    if region != 'all':
+        data = data[data['region'] == region]
+
+    if band != 'all':
+        data = data[data['band'] == band]
+
+    if data.empty:
+        return [[], "Error: 查询结果为空", time_input_style]
+
+    # 聚合7天的数据
+    if granularity == '7d':
+        data = data.resample('7D', on='utc_time').mean().reset_index()
 
     # 仅保留数值列
-    numeric_cols = filtered_df.select_dtypes(include=[np.number]).columns.tolist()
-    filtered_df = filtered_df.set_index('utc_time')
+    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+    data = data.set_index('utc_time')
 
     # 计算加权平均
     def weighted_percentile(data, percents, sorter):
@@ -180,8 +202,8 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
         # 在数组的前后各补一个与起止相同的数
         pad_data = np.pad(data[sorter], pad_width=(1, 1), mode='edge')
 
-        lower_percentile = percents[0] / num_points
-        upper_percentile = percents[1] / num_points
+        lower_percentile = percents[0] / 100 * num_points
+        upper_percentile = percents[1] / 100 * num_points
 
         lower_floor = int(np.floor(lower_percentile))
         upper_floor = int(np.floor(upper_percentile))
@@ -199,7 +221,7 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
         upper_weight = upper_percentile - upper_floor
         all_value = lower_weight * pad_data[lower_ceil] + upper_weight * pad_data[upper_floor + 1]
 
-        for index in range(lower_ceil + 1, upper_floor + 1):
+        for index in range(lower_ceil+1, upper_floor+1):
             all_value = all_value + pad_data[index]
 
         weighted_data = all_value / (upper_percentile - lower_percentile)
@@ -213,10 +235,9 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
         result = {col: round(weighted_values[col], 2) for col in numeric_cols}
         return pd.Series(result)
 
-    grouped = filtered_df.resample(granularity).apply(lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end]))
+    grouped = data.resample(granularity).apply(lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end]))
 
     # 打印调试信息
-    print("Filtered DataFrame head:", filtered_df.head())
     print("Grouped DataFrame head:", grouped.head())
 
     # 创建多个图表
@@ -232,7 +253,7 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
     percentage_selected = (percentile_end - percentile_start)
     percentage_text = f'Selected Data Percentage: {percentage_selected:.2f}%'
 
-    return graphs, percentage_text
+    return graphs, percentage_text, time_input_style
 
 if __name__ == '__main__':
     app.run_server(debug=True, host='0.0.0.0')

@@ -6,7 +6,7 @@ import pandas as pd
 # 定义数据生成的范围和规律
 regions = ['aps1', 'use1', 'euw1']
 bands = ['2.4g', '5g', '6g']
-deviceids = [f'd{i}' for i in range(1, 11)]  # 生成d1到d10
+deviceids = [f'd{i}' for i in range(1, 7)]  # 生成d1到d10
 start_date = datetime.now() - timedelta(days=15)
 end_date = datetime.now()
 interval = timedelta(minutes=15)  # 每15分钟生成一条数据
@@ -18,18 +18,18 @@ while current_date <= end_date:
     for deviceid in deviceids:
         current_time = current_date
         for _ in range(96):  # 每天生成96条数据
-            region = regions[(int(deviceid[1]) - 1) % 3]  # 根据deviceid分配region
-            client_online = random.randint(1, 100)
-            band = random.choice(bands)
-            wan_throughput = random.randint(50, 1000)
-            airtime_utilization = random.uniform(0, 1)
-            congestion_rate = random.uniform(0, 1)
-            noise = random.uniform(-100, 0)
+            for band in bands:
+                region = regions[(int(deviceid[1]) - 1) % 3]  # 根据deviceid分配region
+                client_online = random.randint(1, 100)
+                wan_throughput = random.randint(50, 1000)
+                airtime_utilization = random.uniform(0, 1)
+                congestion_rate = random.uniform(0, 1)
+                noise = random.uniform(-100, 0)
 
-            data_15min.append([
-                region, current_time.strftime('%Y-%m-%d %H:%M:%S'), deviceid, client_online, band,
-                wan_throughput, airtime_utilization, congestion_rate, noise
-            ])
+                data_15min.append([
+                    region, current_time.strftime('%Y-%m-%d %H:%M:%S'), deviceid, client_online, band,
+                    wan_throughput, airtime_utilization, congestion_rate, noise
+                ])
             current_time += interval
     current_date += timedelta(days=1)
 
@@ -62,11 +62,20 @@ def aggregate_data(df, freq):
     }
     df_resampled = df.resample(freq, on='utc_time').agg(aggregation)
     df_resampled = df_resampled.dropna(how='all')  # 删除所有列均为NaN的行
+    df_resampled['region'] = df['region'].iloc[0]
+    df_resampled['deviceid'] = df['deviceid'].iloc[0]
+    df_resampled['band'] = df['band'].iloc[0]
     return df_resampled.reset_index()
 
 # 计算每小时和每天的平均数据
-df_1h = df_15min.groupby(['region', 'band', 'deviceid']).apply(aggregate_data, 'H').reset_index(drop=True)
-df_1d = df_15min.groupby(['region', 'band', 'deviceid']).apply(aggregate_data, 'D').reset_index(drop=True)
+df_1h = df_15min.groupby(['region', 'deviceid', 'band']).apply(aggregate_data, 'H').reset_index(drop=True)
+df_1d = df_15min.groupby(['region', 'deviceid', 'band']).apply(aggregate_data, 'D').reset_index(drop=True)
+
+# 调整列顺序
+df_1h = df_1h[['region', 'utc_time', 'deviceid', 'client_online', 'band', 'wan_throughput',
+               'airtime_utilization', 'congestion_rate', 'noise']]
+df_1d = df_1d[['region', 'utc_time', 'deviceid', 'client_online', 'band', 'wan_throughput',
+               'airtime_utilization', 'congestion_rate', 'noise']]
 
 # 写入聚合数据的CSV文件
 df_1h.to_csv('data_1h_avg.csv', index=False)
