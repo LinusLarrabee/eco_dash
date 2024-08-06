@@ -150,7 +150,7 @@ def update_graphs_tab2(region, band, start_date, end_date, sort_indicator, perce
                     count = ((sliced_data[col] > lower) & (sliced_data[col] <= upper)).sum()
                 else:
                     count = ((sliced_data[col] > lower) & (sliced_data[col] < upper)).sum()
-            interval_counts[f"{lower} {'[' if include_lower else '('}{','}{']' if include_upper else ')'} {upper}"] = count
+            interval_counts[f"({lower},{upper})" if include_lower else f"({lower},{upper}"] = count
 
         # 创建图表
         figure = {
