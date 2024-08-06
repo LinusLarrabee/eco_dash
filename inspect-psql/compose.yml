@@ -11,7 +11,7 @@ services:
       POSTGRES_HOST: superset-postgres-1
       POSTGRES_PORT: 5432
     ports:
-      - "8050:8050"
+      - "8051:8050"
     networks:
       - superset_default
 
