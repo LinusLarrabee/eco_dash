@@ -9,3 +9,20 @@ services:
       - .:/app
     environment:
       - PYTHONUNBUFFERED=1
+      - MINIO_URL=http://minio:9000
+      - MINIO_ACCESS_KEY=admin
+      - MINIO_SECRET_KEY=admin123
+    depends_on:
+      - minio
+
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"  # MinIO API 端口
+      - "9001:9001"  # MinIO 控制台端口
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=admin123
+    volumes:
+      - ./minio_data:/data
+    command: server /data --console-address ":9001"

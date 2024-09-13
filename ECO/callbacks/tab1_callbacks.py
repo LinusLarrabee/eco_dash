@@ -3,11 +3,10 @@ from dash import dcc
 import pandas as pd
 import numpy as np
 from app import app
+from data import data_loader
 
-# 读取CSV数据
-df_15min = pd.read_csv('data/data_15min.csv')
-df_1h = pd.read_csv('data/data_1h_avg.csv')
-df_1d = pd.read_csv('data/data_1d_avg.csv')
+# 读取数据
+df_15min, df_1h, df_1d = data_loader.load_data()
 
 @app.callback(
     [Output('graphs-container', 'children'),

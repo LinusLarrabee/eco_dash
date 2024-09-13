@@ -1,9 +1,8 @@
 from airflow import DAG
-from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.python_operator import PythonOperator
 from airflow.utils.dates import days_ago
 from datetime import timedelta
 
-# 定义 DAG 参数
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
@@ -13,21 +12,22 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
-# 创建 DAG 实例
+def print_hello():
+    print("Hello from Airflow!")
+
 dag = DAG(
-    'example_dag',
+    'daily_hello_world',
     default_args=default_args,
-    description='An example DAG for scheduling',
-    schedule_interval=timedelta(days=1),  # 定时任务的执行间隔
-    start_date=days_ago(1),  # 定义任务开始的时间
-    catchup=False,  # 设置为 False 以防止捕获和执行历史任务
+    description='A simple daily DAG',
+    schedule_interval='@daily',
+    start_date=days_ago(1),
+    catchup=False,
 )
 
-# 定义任务
-start_task = DummyOperator(task_id='start_task', dag=dag)
+run_this = PythonOperator(
+    task_id='say_hello',
+    python_callable=print_hello,
+    dag=dag,
+)
 
-# 可以定义更多任务并设置任务依赖
-end_task = DummyOperator(task_id='end_task', dag=dag)
-
-# 设置任务依赖关系
-start_task >> end_task
+run_this
