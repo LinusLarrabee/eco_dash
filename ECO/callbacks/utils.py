@@ -40,27 +40,6 @@ def generate_default_intervals(data, num_intervals=5):
     return intervals
 
 
-# 根据时间粒度返回聚合尺度
-def get_time_aggregation_scale(granularity):
-    """
-    根据时间粒度返回聚合尺度。
-    :param granularity: 时间粒度 (e.g., '15min', '1h', '1d', '7d')
-    :return: 聚合尺度 (e.g., 'minute', 'hour', 'day', 'week')
-    """
-    if granularity == '15min':
-        return 'minute'
-    elif granularity == '1h':
-        return 'hour'
-    elif granularity == '1d':
-        return 'day'
-    elif granularity == '7d':
-        return 'week'
-    elif granularity == '1M':
-        return 'month'
-    else:
-        raise ValueError(f"未定义的时间粒度: {granularity}")
-
-
 # 测试用例
 if __name__ == "__main__":
     # 测试 parse_intervals 函数

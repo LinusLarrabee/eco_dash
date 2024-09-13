@@ -1,13 +1,15 @@
+import logging
+
 from dash.dependencies import Input, Output
 from dash import dcc
 import pandas as pd
 import numpy as np
 from app import app
-from data import data_loader
-from .utils import parse_intervals, generate_default_intervals, get_time_aggregation_scale
+from data import data_loader,s3_utils
+from .utils import parse_intervals, generate_default_intervals
 
 # # 读取数据
-df_15min, df_1h, df_1d = data_loader.load_data()
+# df_15min, df_1h, df_1d = data_loader.load_data()
 
 @app.callback(
     [Output('graphs-container', 'children'),
@@ -41,10 +43,8 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     start_datetime = pd.to_datetime(f"{start_date}")
     end_datetime = pd.to_datetime(f"{end_date}")
 
-    # 根据时间粒度选择对应的数据源
-    aggregation_scale = get_time_aggregation_scale(granularity)
-
-    data = get_data(start_datetime, end_datetime, aggregation_scale)
+    data = s3_utils.get_s3_data(start_datetime, end_datetime, granularity, 'ap_data')
+    logging.INFO(data)
 
     # if granularity == '15min':
     #     data = df_15min.copy()
@@ -66,9 +66,9 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     if data.empty:
         return [[], "", time_input_style]
 
-    # 聚合7天的数据
-    if granularity == '7d':
-        data = data.resample('7D', on='utc_time').mean().reset_index()
+    # # 聚合7天的数据
+    # if granularity == '7d':
+    #     data = data.resample('7D', on='utc_time').mean().reset_index()
 
     # 仅保留数值列
     numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()

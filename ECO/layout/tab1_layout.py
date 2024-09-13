@@ -32,12 +32,16 @@ layout = html.Div([
             dcc.Dropdown(
                 id='time-granularity-dropdown',
                 options=[
-                    {'label': '15 minutes', 'value': '15min'},
+                    # 不提供原始值选项
+                    # {'label': 'raw', 'value': 'raw'},
                     {'label': '1 hour', 'value': '1h'},
                     {'label': '1 day', 'value': '1d'},
-                    {'label': '7 days', 'value': '7d'}
+                    # {'label': '7 days', 'value': '7d'},
+                    # {'label': '1 month', 'value': '1m'},
+                    # {'label': '3 months', 'value': '1q'},
+                    # {'label': '1 year', 'value': '1y'}
                 ],
-                value='15min',
+                value='1h',
                 style={'width': '100%'}
             ),
 

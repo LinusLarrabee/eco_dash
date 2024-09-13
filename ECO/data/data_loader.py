@@ -23,9 +23,6 @@ s3_client = boto3.client(
 # 从 S3 读取 CSV 数据的函数
 def read_s3_csv(file_key):
     bucket_name = os.getenv("S3_BUCKET")
-    if not bucket_name:
-        raise ValueError("S3_BUCKET is not set in the .env file or environment variables.")
-    print(f"S3_BUCKET: {bucket_name}")  # 打印 bucket_name 以确认是否正确读取
     full_key = f"{os.getenv('S3_PREFIX')}{file_key}"
     response = s3_client.get_object(Bucket=bucket_name, Key=full_key)
     return pd.read_csv(io.BytesIO(response['Body'].read()))
