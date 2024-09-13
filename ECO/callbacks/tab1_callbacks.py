@@ -4,19 +4,18 @@ import pandas as pd
 import numpy as np
 from app import app
 from data import data_loader
+from .utils import parse_intervals, generate_default_intervals, get_time_aggregation_scale
 
-# 读取数据
+# # 读取数据
 df_15min, df_1h, df_1d = data_loader.load_data()
 
 @app.callback(
     [Output('graphs-container', 'children'),
-     Output('percentile-output', 'children'),
-     Output('start-time-input', 'style')],
+     Output('percentile-output', 'children')],
     [Input('region-dropdown', 'value'),
      Input('band-dropdown', 'value'),
      Input('date-picker-range', 'start_date'),
      Input('date-picker-range', 'end_date'),
-     Input('groups-input', 'value'),
      Input('time-granularity-dropdown', 'value'),
      Input('sort-indicator-dropdown', 'value'),
      Input('percentile-start', 'value'),
@@ -24,7 +23,7 @@ df_15min, df_1h, df_1d = data_loader.load_data()
      Input('percentile-slider', 'value')],
     prevent_initial_call=True
 )
-def update_graphs(region, band, start_date, end_date, groups, granularity, sort_indicator, percentile_start, percentile_end, percentile_slider):
+def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, percentile_start, percentile_end, percentile_slider):
     # 确保百分位值与滑块值一致
     if [percentile_start, percentile_end] != percentile_slider:
         percentile_start, percentile_end = percentile_slider
@@ -43,12 +42,16 @@ def update_graphs(region, band, start_date, end_date, groups, granularity, sort_
     end_datetime = pd.to_datetime(f"{end_date}")
 
     # 根据时间粒度选择对应的数据源
-    if granularity == '15min':
-        data = df_15min.copy()
-    elif granularity == '1h':
-        data = df_1h.copy()
-    elif granularity == '1d' or granularity == '7d':
-        data = df_1d.copy()
+    aggregation_scale = get_time_aggregation_scale(granularity)
+
+    data = get_data(start_datetime, end_datetime, aggregation_scale)
+
+    # if granularity == '15min':
+    #     data = df_15min.copy()
+    # elif granularity == '1h':
+    #     data = df_1h.copy()
+    # elif granularity == '1d' or granularity == '7d':
+    #     data = df_1d.copy()
 
     # 过滤数据
     data['utc_time'] = pd.to_datetime(data['utc_time'])
