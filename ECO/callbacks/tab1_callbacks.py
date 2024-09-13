@@ -14,8 +14,8 @@ df_15min, df_1h, df_1d = data_loader.load_data()
      Output('start-time-input', 'style')],
     [Input('region-dropdown', 'value'),
      Input('band-dropdown', 'value'),
-     Input('start-date-picker', 'date'),
-     Input('start-time-input', 'value'),
+     Input('date-picker-range', 'start_date'),
+     Input('date-picker-range', 'end_date'),
      Input('groups-input', 'value'),
      Input('time-granularity-dropdown', 'value'),
      Input('sort-indicator-dropdown', 'value'),
@@ -24,7 +24,7 @@ df_15min, df_1h, df_1d = data_loader.load_data()
      Input('percentile-slider', 'value')],
     prevent_initial_call=True
 )
-def update_graphs(region, band, start_date, start_time, groups, granularity, sort_indicator, percentile_start, percentile_end, percentile_slider):
+def update_graphs(region, band, start_date, end_date, groups, granularity, sort_indicator, percentile_start, percentile_end, percentile_slider):
     # 确保百分位值与滑块值一致
     if [percentile_start, percentile_end] != percentile_slider:
         percentile_start, percentile_end = percentile_slider
@@ -38,17 +38,9 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
     else:
         time_input_style = {'display': 'block', 'marginLeft': '10px'}
 
-    # 解析起始时间和日期
-    start_datetime = pd.to_datetime(f"{start_date} {start_time}")
-
-    if granularity == '7d':
-        end_datetime = start_datetime + pd.Timedelta(days=7 * groups)
-    elif granularity == '15min':
-        end_datetime = start_datetime + pd.Timedelta(minutes=15 * groups)
-    elif granularity == '1h':
-        end_datetime = start_datetime + pd.Timedelta(hours=groups - 1)
-    elif granularity == '1d':
-        end_datetime = start_datetime + pd.Timedelta(days=groups - 1)
+    # 解析起止时间和日期
+    start_datetime = pd.to_datetime(f"{start_date}")
+    end_datetime = pd.to_datetime(f"{end_date}")
 
     # 根据时间粒度选择对应的数据源
     if granularity == '15min':
@@ -81,7 +73,6 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
 
     # 计算加权平均
     def weighted_percentile(data, percents, sorter):
-
         num_points = len(data)
         pad_data = np.pad(data[sorter], pad_width=(1, 1), mode='edge')
 
@@ -106,7 +97,6 @@ def update_graphs(region, band, start_date, start_time, groups, granularity, sor
             all_value = all_value + pad_data[index]
 
         weighted_data = all_value / (upper_percentile - lower_percentile)
-
         return weighted_data
 
     # 按时间粒度聚合数据

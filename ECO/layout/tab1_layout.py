@@ -40,33 +40,43 @@ layout = html.Div([
                 value='15min',
                 style={'width': '100%'}
             ),
-            html.Br(),  # 添加间距
-            html.Label("选择起始日期："),
-            dcc.DatePickerSingle(
-                id='start-date-picker',
+
+
+            # html.Br(),  # 添加间距
+            # html.Label("选择起始日期："),
+            # dcc.DatePickerSingle(
+            #     id='start-date-picker',
+            #     min_date_allowed=pd.to_datetime('2024-01-01'),
+            #     max_date_allowed=pd.to_datetime('2024-12-31'),
+            #     initial_visible_month=pd.to_datetime('2024-07-23'),
+            #     date=pd.to_datetime('2024-07-23').date(),
+            # ),
+            # html.Br(),  # 添加间距
+            # html.Div([
+            #     html.Label("选择组别："),
+            #     dcc.Input(
+            #         id='groups-input',
+            #         type='number',
+            #         min=1,
+            #         value=1,
+            #         style={'width': '100px'}
+            #     ),
+            #     dcc.Input(
+            #         id='start-time-input',
+            #         type='text',
+            #         placeholder='HH:MM',
+            #         value='00:00',
+            #         style={'marginLeft': '10px'}
+            #     )
+            # ], style={'display': 'flex', 'alignItems': 'center'}),
+            html.Label("选择起止日期："),
+            dcc.DatePickerRange(
+                id='date-picker-range',
                 min_date_allowed=pd.to_datetime('2024-01-01'),
                 max_date_allowed=pd.to_datetime('2024-12-31'),
-                initial_visible_month=pd.to_datetime('2024-07-23'),
-                date=pd.to_datetime('2024-07-23').date(),
+                start_date=pd.to_datetime('2024-07-23').date(),
+                end_date=pd.to_datetime('2024-07-30').date(),
             ),
-            html.Br(),  # 添加间距
-            html.Div([
-                html.Label("选择组别："),
-                dcc.Input(
-                    id='groups-input',
-                    type='number',
-                    min=1,
-                    value=1,
-                    style={'width': '100px'}
-                ),
-                dcc.Input(
-                    id='start-time-input',
-                    type='text',
-                    placeholder='HH:MM',
-                    value='00:00',
-                    style={'marginLeft': '10px'}
-                )
-            ], style={'display': 'flex', 'alignItems': 'center'}),
             html.Br(),  # 添加间距
             html.Label("选择排序指标："),
             dcc.Dropdown(
