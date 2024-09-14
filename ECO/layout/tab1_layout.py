@@ -4,29 +4,31 @@ from dash import dcc, html
 layout = html.Div([
     html.Div([
         html.Div([
+            # 选择数据分区
             html.Label("选择 Region："),
             dcc.Dropdown(
-                id='region-dropdown',
+                id='region-selector',
                 options=[
-                    {'label': 'APS1', 'value': 'aps1'},
-                    {'label': 'USE1', 'value': 'use1'},
-                    {'label': 'EUW1', 'value': 'euw1'}
+                    {'label': 'US-East-1', 'value': 'us-east-1'},
+                    {'label': 'AP-Southeast-1', 'value': 'ap-southeast-1'},
+                    {'label': 'EU-West-1', 'value': 'eu-west-1'}
                 ],
-                value='aps1',
-                style={'width': '100%'}
+                placeholder="Select an AWS region"
             ),
+            html.Div(id='link-output'),  # 用于显示动态生成的链接
             html.Br(),  # 添加间距
-            html.Label("选择 Band："),
-            dcc.Dropdown(
-                id='band-dropdown',
-                options=[
-                    {'label': '2.4G', 'value': '2.4GHz'},
-                    {'label': '5G', 'value': '5GHz'},
-                    {'label': '6G', 'value': '6GHz'}
-                ],
-                value='2.4GHz',
-                style={'width': '100%'}
+
+            # 选择时间及粒度（数据源）
+            html.Label("选择起止日期："),
+            dcc.DatePickerRange(
+                id='date-picker-range',
+                min_date_allowed=pd.to_datetime('2024-07-01'),
+                # max_date_allowed=pd.to_datetime('2024-12-31'),
+                start_date=pd.to_datetime('2024-09-07').date(),
+                end_date=pd.to_datetime('2024-09-10').date(),
             ),
+
+
             html.Br(),  # 添加间距
             html.Label("选择时间粒度："),
             dcc.Dropdown(
@@ -42,6 +44,20 @@ layout = html.Div([
                     # {'label': '1 year', 'value': '1y'}
                 ],
                 value='1h',
+                style={'width': '100%'}
+            ),
+
+
+
+            html.Label("选择 Band："),
+            dcc.Dropdown(
+                id='band-dropdown',
+                options=[
+                    {'label': '2.4G', 'value': '2.4GHz'},
+                    {'label': '5G', 'value': '5GHz'},
+                    {'label': '6G', 'value': '6GHz'}
+                ],
+                value='2.4GHz',
                 style={'width': '100%'}
             ),
 
@@ -74,14 +90,6 @@ layout = html.Div([
             #     )
             # ], style={'display': 'flex', 'alignItems': 'center'}),
             html.Br(),  # 添加间距
-            html.Label("选择起止日期："),
-            dcc.DatePickerRange(
-                id='date-picker-range',
-                min_date_allowed=pd.to_datetime('2024-07-01'),
-                max_date_allowed=pd.to_datetime('2024-12-31'),
-                start_date=pd.to_datetime('2024-09-07').date(),
-                end_date=pd.to_datetime('2024-09-10').date(),
-            ),
             html.Br(),  # 添加间距
             html.Label("选择排序指标："),
             dcc.Dropdown(
@@ -90,12 +98,12 @@ layout = html.Div([
                     {'label': 'Average RX Rate', 'value': 'average_rx_rate'},
                     {'label': 'Average TX Rate', 'value': 'average_tx_rate'},
                     {'label': 'Congestion Score', 'value': 'congestion_score'},
-                    {'label': 'WiFi Coverage Score', 'value': 'wifi_coverage_score'},
+                    # {'label': 'WiFi Coverage Score', 'value': 'wifi_coverage_score'},
                     {'label': 'Noise', 'value': 'noise'},
                     {'label': 'Error Rate', 'value': 'errors_rate'},
                     {'label': 'WAN Bandwidth', 'value': 'wan_bandwidth'}
                 ],
-                value='wan_bandwidth',  # 默认选中 WAN Bandwidth
+                value='average_rx_rate',  # 默认选中 WAN Bandwidth
                 style={'width': '100%'}
             ),
 

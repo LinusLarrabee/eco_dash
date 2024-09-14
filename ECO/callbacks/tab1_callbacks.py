@@ -1,24 +1,34 @@
 import logging
 
-from dash.dependencies import Input, Output
-from dash import dcc
-import pandas as pd
-import numpy as np
 from app import app
 from data import s3_utils
 from dash import no_update
 import pandas as pd
-import numpy as np
+from dash import dcc, html
+from dash.dependencies import Input, Output
 
 
-# # 读取数据
-# df_15min, df_1h, df_1d = data_loader.load_data()
+# 回调函数，用于跳转到不同的子域名
+@app.callback(
+    Output('link-output', 'children'),
+    Input('region-selector', 'value')
+)
+def update_link(region):
+    if region:
+        url_map = {
+            'us-east-1': 'https://baidu.com',
+            'ap-southeast-1': 'http://ap-southeast-1.yourdomain.com',
+            'eu-west-1': 'http://eu-west-1.yourdomain.com'
+        }
+        return html.A('Open in new tab', href=url_map[region], target='_blank')
+    return ""
+
+
 
 @app.callback(
     [Output('graphs-container', 'children'),
      Output('percentile-output', 'children')],
-    [Input('region-dropdown', 'value'),
-     Input('band-dropdown', 'value'),
+    [Input('band-dropdown', 'value'),
      Input('date-picker-range', 'start_date'),
      Input('date-picker-range', 'end_date'),
      Input('time-granularity-dropdown', 'value'),
@@ -28,7 +38,7 @@ import numpy as np
      Input('percentile-slider', 'value')],
     prevent_initial_call=True
 )
-def update_graphs(region, band, start_date, end_date, granularity, sort_indicator, percentile_start, percentile_end, percentile_slider):
+def update_graphs(band, start_date, end_date, granularity, sort_indicator, percentile_start, percentile_end, percentile_slider):
     # 确保百分位值与滑块值一致
     if [percentile_start, percentile_end] != percentile_slider:
         percentile_start, percentile_end = percentile_slider
@@ -64,7 +74,7 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
 
     # 将新的指标加入数据处理逻辑
     numeric_cols = ['average_rx_rate', 'average_tx_rate', 'congestion_score',
-                    'wifi_coverage_score', 'noise', 'errors_rate', 'wan_bandwidth']
+                     'noise', 'errors_rate', 'wan_bandwidth']
 
     data = data.set_index('collection_time_agg')
 
@@ -77,6 +87,7 @@ def update_graphs(region, band, start_date, end_date, granularity, sort_indicato
     #     return pd.Series(weighted_values)
 
     # grouped = data.resample(granularity).apply(lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end]))
+    logging.info(f"Sort indicator show: {sort_indicator}")
 
     # 定义每个分组的处理函数
     def get_percentile_row(group, sort_indicator, percentiles):
@@ -139,11 +150,18 @@ def sync_percentile_input_to_slider(start_value, end_value):
         return no_update
 
 
+import numpy as np
+import logging
 
-# 计算加权平均
+# 定义加权百分位函数并添加日志
 def weighted_percentile(data, percents, sorter):
+    logging.info(f"Data before processing: {data}")
+    logging.info(f"Percents: {percents}, Sorter: {sorter}")
+
     num_points = len(data)
     pad_data = np.pad(data[sorter], pad_width=(1, 1), mode='edge')
+
+    logging.info(f"Padded Data: {pad_data}")
 
     lower_percentile = percents[0] / 100 * num_points
     upper_percentile = percents[1] / 100 * num_points
@@ -153,17 +171,35 @@ def weighted_percentile(data, percents, sorter):
     lower_ceil = int(np.ceil(lower_percentile))
     upper_ceil = int(np.ceil(upper_percentile))
 
+    logging.info(f"Lower percentile: {lower_percentile}, Upper percentile: {upper_percentile}")
+    logging.info(f"Lower floor: {lower_floor}, Upper floor: {upper_floor}, Lower ceil: {lower_ceil}, Upper ceil: {upper_ceil}")
+
+    # 确保数据类型为浮点数
+    pad_data = np.array(pad_data, dtype=np.float64)
+
     if lower_floor == upper_floor:
         if upper_percentile - lower_percentile < 10e-8:
-            return (pad_data[lower_floor] + pad_data[lower_floor + 1]) / 2
+            result = (pad_data[lower_floor] + pad_data[lower_floor + 1]) / 2
+            logging.info(f"Result (floor == upper_floor): {result}")
+            return result
         return pad_data[lower_ceil]
 
     lower_weight = lower_ceil - lower_percentile
     upper_weight = upper_percentile - upper_floor
+
+    logging.info(f"Lower weight: {lower_weight}, Upper weight: {upper_weight}")
+
     all_value = lower_weight * pad_data[lower_ceil] + upper_weight * pad_data[upper_floor + 1]
+
+    logging.info(f"All value after initial calculation: {all_value}")
 
     for index in range(lower_ceil + 1, upper_floor + 1):
         all_value = all_value + pad_data[index]
 
+    logging.info(f"All value after adding in range: {all_value}")
+
     weighted_data = all_value / (upper_percentile - lower_percentile)
+
+    logging.info(f"Final weighted data: {weighted_data}")
+
     return weighted_data
