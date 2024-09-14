@@ -35,7 +35,7 @@ def get_s3_data(start_datetime, end_datetime, granularity, second_level_prefix):
     根据时间范围和聚合尺度从 S3 读取多个文件并合并为一个完整的 DataFrame
     :param start_datetime: 起始时间 (datetime)
     :param end_datetime: 结束时间 (datetime)
-    :param granularity: 时间聚合单位 ('day', 'hour', '1m', '1q', '1y')
+    :param granularity: 时间聚合单位 ('1h', '1d', '1w', '1m', '1q', '1y')
     :param second_level_prefix: S3 前缀的第二级，作为传入参数
     :return: 合并的 DataFrame
     """
@@ -51,12 +51,15 @@ def get_s3_data(start_datetime, end_datetime, granularity, second_level_prefix):
 
     while current_datetime <= end_datetime:
         # 根据时间聚合单位生成 S3 前缀路径
-        if granularity in ['1m', '1q']:
-            date_str = current_datetime.strftime('%Y-%m')
+        if granularity == '1m':
+            date_str = current_datetime.strftime('%Y-%m')  # 按月份
+        elif granularity == '1q':
+            quarter = (current_datetime.month - 1) // 3 + 1  # 计算季度
+            date_str = f"{current_datetime.year}-Q{quarter}"  # 按季度
         elif granularity == '1y':
-            date_str = current_datetime.strftime('%Y')
+            date_str = current_datetime.strftime('%Y')  # 按年份
         else:
-            date_str = current_datetime.strftime('%Y-%m-%d')
+            date_str = current_datetime.strftime('%Y-%m-%d')  # 按天、小时、周处理
 
         logging.info(f"Processing date {date_str} with prefix {prefix}.")
 
@@ -71,6 +74,11 @@ def get_s3_data(start_datetime, end_datetime, granularity, second_level_prefix):
 
         # 读取并合并文件
         for file_key in files:
+            # 跳过不需要处理的标志性文件，例如 _SUCCESS
+            if file_key.endswith('_SUCCESS') or file_key.endswith('.crc'):
+                logging.debug(f"Skipping non-data file {file_key}.")
+                continue
+
             try:
                 df = read_s3_parquet(bucket, file_key)
                 data_frames.append(df)
@@ -85,6 +93,7 @@ def get_s3_data(start_datetime, end_datetime, granularity, second_level_prefix):
     if data_frames:
         combined_df = pd.concat(data_frames, ignore_index=True)
         logging.info(f"Successfully combined {len(data_frames)} data frames.")
+        logging.info(f"Final DataFrame summary:\n{combined_df.describe()}")  # 记录 DataFrame 的摘要信息
         return combined_df
     else:
         logging.warning(f"No data found between {start_datetime} and {end_datetime}.")

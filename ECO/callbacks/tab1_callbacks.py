@@ -5,8 +5,8 @@ from dash import dcc
 import pandas as pd
 import numpy as np
 from app import app
-from data import data_loader,s3_utils
-from .utils import parse_intervals, generate_default_intervals
+from data import s3_utils
+
 
 # # 读取数据
 # df_15min, df_1h, df_1d = data_loader.load_data()

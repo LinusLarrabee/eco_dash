@@ -73,6 +73,7 @@ layout = html.Div([
             #         style={'marginLeft': '10px'}
             #     )
             # ], style={'display': 'flex', 'alignItems': 'center'}),
+            html.Br(),  # 添加间距
             html.Label("选择起止日期："),
             dcc.DatePickerRange(
                 id='date-picker-range',
@@ -83,6 +84,8 @@ layout = html.Div([
             ),
             html.Br(),  # 添加间距
             html.Label("选择排序指标："),
+            html.Br(),  # 添加间距
+            html.Br(),  # 添加间距
             dcc.Dropdown(
                 id='sort-indicator-dropdown',
                 options=[
