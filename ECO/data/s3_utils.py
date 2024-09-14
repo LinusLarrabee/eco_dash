@@ -29,7 +29,6 @@ def read_s3_parquet(bucket, file_key):
     """
     response = s3_client.get_object(Bucket=bucket, Key=file_key)
     return pd.read_parquet(io.BytesIO(response['Body'].read()))
-
 def get_s3_data(start_datetime, end_datetime, granularity, second_level_prefix):
     """
     根据时间范围和聚合尺度从 S3 读取多个文件并合并为一个完整的 DataFrame
@@ -44,22 +43,27 @@ def get_s3_data(start_datetime, end_datetime, granularity, second_level_prefix):
     # 从环境变量中读取 bucket 和第一级 prefix
     bucket = os.getenv("S3_BUCKET")  # 从 .env 文件或环境变量中获取 S3 bucket
     first_level_prefix = os.getenv("S3_FIRST_LEVEL_PREFIX")  # 获取第一级 prefix
-    prefix = f"{first_level_prefix}{second_level_prefix}"  # 拼接完整的前缀
+
+    # 确定时间格式和前缀格式
+    if granularity == '1m':
+        format_str = '%Y-%m'
+    elif granularity == '1y':
+        format_str = '%Y'
+    elif granularity == '1h':
+        third_level_prefix = 'hourly'
+        format_str = '%Y-%m-%d'  # 按天、小时、周处理
+    elif granularity == '1d':
+        third_level_prefix = 'daily'
+        format_str = '%Y-%m-%d'  # 按天、小时、周处理
 
     current_datetime = start_datetime
     data_frames = []
 
     while current_datetime <= end_datetime:
-        # 根据时间聚合单位生成 S3 前缀路径
-        if granularity == '1m':
-            date_str = current_datetime.strftime('%Y-%m')  # 按月份
-        elif granularity == '1q':
-            quarter = (current_datetime.month - 1) // 3 + 1  # 计算季度
-            date_str = f"{current_datetime.year}-Q{quarter}"  # 按季度
-        elif granularity == '1y':
-            date_str = current_datetime.strftime('%Y')  # 按年份
-        else:
-            date_str = current_datetime.strftime('%Y-%m-%d')  # 按天、小时、周处理
+
+        date_str = current_datetime.strftime(format_str)  # 根据预先确定的格式化规则
+
+        prefix = f"{first_level_prefix}{second_level_prefix}{third_level_prefix}"  # 拼接完整的前缀
 
         logging.info(f"Processing date {date_str} with prefix {prefix}.")
 

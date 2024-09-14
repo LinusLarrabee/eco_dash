@@ -34,9 +34,9 @@ def read_local_csv(file_path):
 # 读取数据并返回 DataFrame
 def load_data():
     if env == 'uat':  # 生产环境使用 S3
-        df_15min = read_s3_csv('data_15min.csv')
-        df_1h = read_s3_csv('data_1h_avg.csv')
-        df_1d = read_s3_csv('data_1d_avg.csv')
+        df_15min = read_s3_csv('../data_15min.csv')
+        df_1h = read_s3_csv('../data_1h_avg.csv')
+        df_1d = read_s3_csv('../data_1d_avg.csv')
     else:  # 本地或开发环境使用本地文件
         df_15min = read_local_csv('data/data_15min.csv')
         df_1h = read_local_csv('data/data_1h_avg.csv')

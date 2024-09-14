@@ -20,11 +20,11 @@ layout = html.Div([
             dcc.Dropdown(
                 id='band-dropdown',
                 options=[
-                    {'label': '2.4G', 'value': '2.4g'},
-                    {'label': '5G', 'value': '5g'},
-                    {'label': '6G', 'value': '6g'}
+                    {'label': '2.4G', 'value': '2.4GHz'},
+                    {'label': '5G', 'value': '5GHz'},
+                    {'label': '6G', 'value': '6GHz'}
                 ],
-                value='2.4g',
+                value='2.4GHz',
                 style={'width': '100%'}
             ),
             html.Br(),  # 添加间距
@@ -77,29 +77,28 @@ layout = html.Div([
             html.Label("选择起止日期："),
             dcc.DatePickerRange(
                 id='date-picker-range',
-                min_date_allowed=pd.to_datetime('2024-01-01'),
+                min_date_allowed=pd.to_datetime('2024-07-01'),
                 max_date_allowed=pd.to_datetime('2024-12-31'),
-                start_date=pd.to_datetime('2024-07-23').date(),
-                end_date=pd.to_datetime('2024-07-30').date(),
+                start_date=pd.to_datetime('2024-09-07').date(),
+                end_date=pd.to_datetime('2024-09-10').date(),
             ),
             html.Br(),  # 添加间距
             html.Label("选择排序指标："),
-            html.Br(),  # 添加间距
-            html.Br(),  # 添加间距
             dcc.Dropdown(
                 id='sort-indicator-dropdown',
                 options=[
-                    {'label': 'WAN Throughput', 'value': 'wan_throughput'},
-                    {'label': 'Client Online', 'value': 'client_online'},
-                    {'label': 'Bandwidth', 'value': 'bandwidth'},
-                    {'label': 'Airtime Utilization', 'value': 'airtime_utilization'},
-                    {'label': 'Congestion Rate', 'value': 'congestion_rate'},
+                    {'label': 'Average RX Rate', 'value': 'average_rx_rate'},
+                    {'label': 'Average TX Rate', 'value': 'average_tx_rate'},
+                    {'label': 'Congestion Score', 'value': 'congestion_score'},
+                    {'label': 'WiFi Coverage Score', 'value': 'wifi_coverage_score'},
                     {'label': 'Noise', 'value': 'noise'},
-                    {'label': 'Packet Error Rate', 'value': 'packet_error_rate'}
+                    {'label': 'Error Rate', 'value': 'errors_rate'},
+                    {'label': 'WAN Bandwidth', 'value': 'wan_bandwidth'}
                 ],
-                value='wan_throughput',
+                value='wan_bandwidth',  # 默认选中 WAN Bandwidth
                 style={'width': '100%'}
             ),
+
             html.Br(),  # 添加间距
             html.Label("选择百分位："),
             html.Div([
