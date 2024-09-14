@@ -28,6 +28,8 @@ layout = html.Div([
                 end_date=pd.to_datetime('2024-09-10').date(),
             ),
 
+            dcc.Store(id='filtered-data'),
+
 
             html.Br(),  # 添加间距
             html.Label("选择时间粒度："),
@@ -48,6 +50,20 @@ layout = html.Div([
             ),
 
 
+            html.Br(),  # 添加间距
+            html.Label("选择压缩维度："),
+            dcc.Dropdown(
+                id='agg-dimension-dropdown',
+                options=[
+                    {'label': 'Time', 'value': 'time'},
+                    {'label': 'Network', 'value': 'network'}
+                ],
+                value='time',  # 默认值
+                clearable=False,
+                style={'width': '100%'}
+            ),
+
+            html.Br(),  # 添加间距
 
             html.Label("选择 Band："),
             dcc.Dropdown(
@@ -55,7 +71,8 @@ layout = html.Div([
                 options=[
                     {'label': '2.4G', 'value': '2.4GHz'},
                     {'label': '5G', 'value': '5GHz'},
-                    {'label': '6G', 'value': '6GHz'}
+                    {'label': '6G', 'value': '6GHz'},
+                    {'label': 'All', 'value': '2.4GHz'}
                 ],
                 value='2.4GHz',
                 style={'width': '100%'}
@@ -90,7 +107,6 @@ layout = html.Div([
             #     )
             # ], style={'display': 'flex', 'alignItems': 'center'}),
             html.Br(),  # 添加间距
-            html.Br(),  # 添加间距
             html.Label("选择排序指标："),
             dcc.Dropdown(
                 id='sort-indicator-dropdown',
@@ -107,32 +123,10 @@ layout = html.Div([
                 style={'width': '100%'}
             ),
 
-            html.Br(),  # 添加间距
+
+            html.Br(),
             html.Label("选择百分位："),
-            html.Div([
-                dcc.Input(
-                    id='percentile-start',
-                    type='number',
-                    min=0,
-                    max=100,
-                    step=1,
-                    value=50,
-                    debounce=True,
-                    style={'marginRight': '10px'}
-                ),
-                html.Label("到"),
-                dcc.Input(
-                    id='percentile-end',
-                    type='number',
-                    min=0,
-                    max=100,
-                    step=1,
-                    value=60,
-                    debounce=True,
-                    style={'marginLeft': '10px'}
-                )
-            ], style={'display': 'flex', 'alignItems': 'center'}),
-            html.Br(),  # 添加间距
+            html.Br(),
             dcc.RangeSlider(
                 id='percentile-slider',
                 min=0,

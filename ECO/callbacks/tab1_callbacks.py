@@ -6,6 +6,9 @@ from dash import no_update
 import pandas as pd
 from dash import dcc, html
 from dash.dependencies import Input, Output
+from dash import no_update
+import numpy as np
+import logging
 
 
 # 回调函数，用于跳转到不同的子域名
@@ -23,35 +26,14 @@ def update_link(region):
         return html.A('Open in new tab', href=url_map[region], target='_blank')
     return ""
 
-
-
 @app.callback(
-    [Output('graphs-container', 'children'),
-     Output('percentile-output', 'children')],
-    [Input('band-dropdown', 'value'),
-     Input('date-picker-range', 'start_date'),
+    Output('filtered-data', 'data'),
+    [Input('date-picker-range', 'start_date'),
      Input('date-picker-range', 'end_date'),
-     Input('time-granularity-dropdown', 'value'),
-     Input('sort-indicator-dropdown', 'value'),
-     Input('percentile-start', 'value'),
-     Input('percentile-end', 'value'),
-     Input('percentile-slider', 'value')],
-    prevent_initial_call=True
+     Input('time-granularity-dropdown', 'value')],
+    # prevent_initial_call=True
 )
-def update_graphs(band, start_date, end_date, granularity, sort_indicator, percentile_start, percentile_end, percentile_slider):
-    # 确保百分位值与滑块值一致
-    if [percentile_start, percentile_end] != percentile_slider:
-        percentile_start, percentile_end = percentile_slider
-
-    if int(np.floor(100 * percentile_start)) > int(np.floor(100 * percentile_end)):
-        return [[], "Error: 起始百分位必须小于或等于结束百分位", {'display': 'block', 'marginLeft': '10px'}]
-
-    # 控制时间输入框的显示
-    if granularity in ['7d', '1d']:
-        time_input_style = {'display': 'none'}
-    else:
-        time_input_style = {'display': 'block', 'marginLeft': '10px'}
-
+def update_data_source(start_date, end_date, granularity):
     # 解析起止日期，确保 start_datetime 和 end_datetime 包括完整的时间范围
     start_datetime = pd.to_datetime(f"{start_date}").replace(hour=0, minute=0, second=0)  # 设置为当天 00:00:00
     end_datetime = pd.to_datetime(f"{end_date}").replace(hour=23, minute=59, second=59)  # 设置为当天 23:59:59
@@ -64,30 +46,38 @@ def update_graphs(band, start_date, end_date, granularity, sort_indicator, perce
     data['collection_time'] = pd.to_datetime(data['collection_time'], unit='s')
 
     # 过滤数据，确保同时过滤日期和时间
-    data = data[(data['collection_time'] >= start_datetime) & (data['collection_time'] <= end_datetime)]
+    filtered_data = data[(data['collection_time'] >= start_datetime) & (data['collection_time'] <= end_datetime)]
+    logging.info(filtered_data)
 
+    # 返回过滤后的数据，存储在 dcc.Store 中
+    return filtered_data.to_dict('records')
+
+
+@app.callback(
+    [Output('graphs-container', 'children'),
+     Output('percentile-output', 'children')],
+    [Input('band-dropdown', 'value'),
+     Input('filtered-data', 'data'),
+     Input('sort-indicator-dropdown', 'value'),
+     Input('percentile-slider', 'value')],
+    prevent_initial_call=True
+)
+def update_graphs(band, filtered_data, sort_indicator, percentile_slider):
+    percentile_start, percentile_end = percentile_slider
+
+    # 将传入的字典格式的 filtered_data 转为 DataFrame
+    data = pd.DataFrame(filtered_data)
     logging.info(data)
 
-
+    # 如果 band 被选择，则进行过滤
     if band:
         data = data[data['band'] == band]
 
-    # 将新的指标加入数据处理逻辑
+    # 设置要处理的数值列
     numeric_cols = ['average_rx_rate', 'average_tx_rate', 'congestion_score',
-                     'noise', 'errors_rate', 'wan_bandwidth']
+                    'noise', 'errors_rate', 'wan_bandwidth']
 
     data = data.set_index('collection_time_agg')
-
-    # 按时间粒度聚合数据
-    # def get_percentile_row(x, sort_indicator, percentiles):
-    #     sorter = np.argsort(x[sort_indicator].values)
-    #     if len(sorter) <= 2:
-    #         return pd.Series({col: np.nan for col in numeric_cols})
-    #     weighted_values = {col: weighted_percentile(x[col].values, percentiles, sorter) for col in numeric_cols}
-    #     return pd.Series(weighted_values)
-
-    # grouped = data.resample(granularity).apply(lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end]))
-    logging.info(f"Sort indicator show: {sort_indicator}")
 
     # 定义每个分组的处理函数
     def get_percentile_row(group, sort_indicator, percentiles):
@@ -103,6 +93,7 @@ def update_graphs(band, start_date, end_date, granularity, sort_indicator, perce
     grouped = data.groupby('collection_time_agg').apply(
         lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end])
     )
+
     # 显示聚合后的数据
     print(grouped)
 
@@ -121,37 +112,8 @@ def update_graphs(band, start_date, end_date, granularity, sort_indicator, perce
 
     return graphs, percentage_text
 
-from dash import no_update
-
-# 回调1：滑块值更新输入框
-@app.callback(
-    [Output('percentile-start', 'value'),
-     Output('percentile-end', 'value')],
-    [Input('percentile-slider', 'value')]
-)
-def sync_percentile_slider_to_input(slider_value):
-    try:
-        return slider_value[0], slider_value[1]
-    except Exception as e:
-        logging.error(f"Error syncing slider to input: {e}")
-        return no_update, no_update
-
-# 回调2：输入框值更新滑块
-@app.callback(
-    Output('percentile-slider', 'value'),
-    [Input('percentile-start', 'value'),
-     Input('percentile-end', 'value')]
-)
-def sync_percentile_input_to_slider(start_value, end_value):
-    try:
-        return [start_value, end_value]
-    except Exception as e:
-        logging.error(f"Error syncing input to slider: {e}")
-        return no_update
 
 
-import numpy as np
-import logging
 
 # 定义加权百分位函数并添加日志
 def weighted_percentile(data, percents, sorter):

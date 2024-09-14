@@ -18,7 +18,7 @@ logging.info("Dash app is starting...")
 
 app.layout = html.Div([
     dcc.Tabs(id='tabs', value='tab1', children=[
-        dcc.Tab(label='Tab 1', value='tab1'),
+        dcc.Tab(label='ECO', value='tab1'),
         dcc.Tab(label='Tab 2', value='tab2'),
     ]),
     html.Div(id='tabs-content')
