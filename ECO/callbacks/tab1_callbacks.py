@@ -106,7 +106,12 @@ def update_graphs(band, filtered_data, sort_indicator, percentile_slider):
 
     # 设置要处理的数值列
     # 提取所有数值列的 'value' 字段
-    numeric_cols = [opt['value'] for opt in granularity_options['controller']['options']]
+    selected_granularity = 'controller'
+    # 获取当前的 granularity 数据
+    granularity_data = granularity_options.get(selected_granularity, {'options': [], 'default': None})
+
+    # 提取所有数值列的 'value' 字段作为 numeric_cols
+    numeric_cols = [opt['value'] for opt in granularity_data['options']]
 
     data = data.set_index('collection_time_agg')
 
@@ -127,12 +132,11 @@ def update_graphs(band, filtered_data, sort_indicator, percentile_slider):
 
     # 显示聚合后的数据
     print(grouped)
+    # 找到排序指标 sort_indicator 对应的 label
+    sort_indicator_label = next((opt['label'] for opt in granularity_data['options'] if opt['value'] == sort_indicator), sort_indicator)
 
     # 创建多个图表
     graphs = []
-    # 使用 granularity_options 中的 'options' 来查找对应的 label
-    granularity_data = granularity_options.get('controller', {'options': [], 'default': None})
-
     for col in numeric_cols:
         # 从 granularity_data['options'] 中找到与 col 对应的 label
         label = next((opt['label'] for opt in granularity_data['options'] if opt['value'] == col), col)
@@ -140,7 +144,7 @@ def update_graphs(band, filtered_data, sort_indicator, percentile_slider):
         # 创建图表
         figure = {
             'data': [{'x': grouped.index, 'y': grouped[col], 'type': 'line', 'name': col}],
-            'layout': {'title': f'{label} for {sort_indicator.capitalize()} Percentile {percentile_start:.2f}% - {percentile_end:.2f}%'}
+            'layout': {'title': f'{label} for ({sort_indicator_label}) In {percentile_start:.2f}% - {percentile_end:.2f}%'}
         }
         graphs.append(dcc.Graph(figure=figure))
 
