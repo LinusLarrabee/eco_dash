@@ -4,6 +4,10 @@ from dash import dcc, html
 layout = html.Div([
     html.Div([
         html.Div([
+            # 变量存储
+            dcc.Store(id='filtered-data'),
+
+
             # 选择数据分区
             html.Label("选择 Region："),
             dcc.Dropdown(
@@ -28,7 +32,6 @@ layout = html.Div([
                 end_date=pd.to_datetime('2024-09-10').date(),
             ),
 
-            dcc.Store(id='filtered-data'),
 
 
             html.Br(),  # 添加间距
@@ -46,6 +49,19 @@ layout = html.Div([
                     # {'label': '1 year', 'value': '1y'}
                 ],
                 value='1h',
+                style={'width': '100%'}
+            ),
+
+            html.Br(),  # 添加间距
+            html.Label("选择指标维度："),
+            dcc.Dropdown(
+                id='metric-granularity-dropdown',
+                options=[
+                    {'label': 'Per Network', 'value': 'network'},
+                    {'label': 'Per Controller', 'value': 'controller'},
+                    {'label': 'Between Controller & Agent', 'value': 'sta'},
+                ],
+                value='controller',
                 style={'width': '100%'}
             ),
 
@@ -71,55 +87,26 @@ layout = html.Div([
                 options=[
                     {'label': '2.4G', 'value': '2.4GHz'},
                     {'label': '5G', 'value': '5GHz'},
-                    {'label': '6G', 'value': '6GHz'},
-                    {'label': 'All', 'value': '2.4GHz'}
+                    {'label': '6G', 'value': '6GHz'}
                 ],
                 value='2.4GHz',
                 style={'width': '100%'}
             ),
 
-
-            # html.Br(),  # 添加间距
-            # html.Label("选择起始日期："),
-            # dcc.DatePickerSingle(
-            #     id='start-date-picker',
-            #     min_date_allowed=pd.to_datetime('2024-01-01'),
-            #     max_date_allowed=pd.to_datetime('2024-12-31'),
-            #     initial_visible_month=pd.to_datetime('2024-07-23'),
-            #     date=pd.to_datetime('2024-07-23').date(),
-            # ),
-            # html.Br(),  # 添加间距
-            # html.Div([
-            #     html.Label("选择组别："),
-            #     dcc.Input(
-            #         id='groups-input',
-            #         type='number',
-            #         min=1,
-            #         value=1,
-            #         style={'width': '100px'}
-            #     ),
-            #     dcc.Input(
-            #         id='start-time-input',
-            #         type='text',
-            #         placeholder='HH:MM',
-            #         value='00:00',
-            #         style={'marginLeft': '10px'}
-            #     )
-            # ], style={'display': 'flex', 'alignItems': 'center'}),
             html.Br(),  # 添加间距
             html.Label("选择排序指标："),
             dcc.Dropdown(
                 id='sort-indicator-dropdown',
                 options=[
-                    {'label': 'Average RX Rate', 'value': 'average_rx_rate'},
-                    {'label': 'Average TX Rate', 'value': 'average_tx_rate'},
-                    {'label': 'Congestion Score', 'value': 'congestion_score'},
-                    # {'label': 'WiFi Coverage Score', 'value': 'wifi_coverage_score'},
-                    {'label': 'Noise', 'value': 'noise'},
-                    {'label': 'Error Rate', 'value': 'errors_rate'},
-                    {'label': 'WAN Bandwidth', 'value': 'wan_bandwidth'}
+                    # {'label': 'Average RX Rate', 'value': 'average_rx_rate'},
+                    # {'label': 'Average TX Rate', 'value': 'average_tx_rate'},
+                    # {'label': 'Congestion Score', 'value': 'congestion_score'},
+                    # # {'label': 'WiFi Coverage Score', 'value': 'wifi_coverage_score'},
+                    # {'label': 'Noise', 'value': 'noise'},
+                    # {'label': 'Error Rate', 'value': 'errors_rate'},
+                    # {'label': 'WAN Bandwidth', 'value': 'wan_bandwidth'}
                 ],
-                value='average_rx_rate',  # 默认选中 WAN Bandwidth
+                # value='average_rx_rate',  # 默认选中 WAN Bandwidth
                 style={'width': '100%'}
             ),
 

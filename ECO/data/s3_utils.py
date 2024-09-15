@@ -29,13 +29,13 @@ def read_s3_parquet(bucket, file_key):
     """
     response = s3_client.get_object(Bucket=bucket, Key=file_key)
     return pd.read_parquet(io.BytesIO(response['Body'].read()))
-def get_s3_data(start_datetime, end_datetime, granularity, second_level_prefix):
+def get_s3_data(start_datetime, end_datetime, granularity, third_level_prefix):
     """
     根据时间范围和聚合尺度从 S3 读取多个文件并合并为一个完整的 DataFrame
     :param start_datetime: 起始时间 (datetime)
     :param end_datetime: 结束时间 (datetime)
     :param granularity: 时间聚合单位 ('1h', '1d', '1w', '1m', '1q', '1y')
-    :param second_level_prefix: S3 前缀的第二级，作为传入参数
+    :param third_level_prefix: S3 前缀的第二级，作为传入参数
     :return: 合并的 DataFrame
     """
     logging.info(f"Starting data retrieval from {start_datetime} to {end_datetime} with granularity {granularity}.")
@@ -50,10 +50,10 @@ def get_s3_data(start_datetime, end_datetime, granularity, second_level_prefix):
     elif granularity == '1y':
         format_str = '%Y'
     elif granularity == '1h':
-        third_level_prefix = 'hourly'
+        second_level_prefix = 'hourly/'
         format_str = '%Y-%m-%d'  # 按天、小时、周处理
     elif granularity == '1d':
-        third_level_prefix = 'daily'
+        second_level_prefix = 'daily/'
         format_str = '%Y-%m-%d'  # 按天、小时、周处理
 
     current_datetime = start_datetime

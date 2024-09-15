@@ -30,16 +30,18 @@ def update_link(region):
     Output('filtered-data', 'data'),
     [Input('date-picker-range', 'start_date'),
      Input('date-picker-range', 'end_date'),
-     Input('time-granularity-dropdown', 'value')],
+     Input('time-granularity-dropdown', 'value'),
+     Input('metric-granularity-dropdown', 'value')
+     ],
     # prevent_initial_call=True
 )
-def update_data_source(start_date, end_date, granularity):
+def update_data_source(start_date, end_date, time_granularity,metric_granularity):
     # 解析起止日期，确保 start_datetime 和 end_datetime 包括完整的时间范围
     start_datetime = pd.to_datetime(f"{start_date}").replace(hour=0, minute=0, second=0)  # 设置为当天 00:00:00
     end_datetime = pd.to_datetime(f"{end_date}").replace(hour=23, minute=59, second=59)  # 设置为当天 23:59:59
 
     # 从 S3 获取数据
-    data = s3_utils.get_s3_data(start_datetime, end_datetime, granularity, 'ap_data/')
+    data = s3_utils.get_s3_data(start_datetime, end_datetime, time_granularity, 'controller_id/controller')
     logging.info(data)
 
     # 将 10 位时间戳（Unix 时间）转换为 datetime 格式
@@ -74,7 +76,7 @@ def update_graphs(band, filtered_data, sort_indicator, percentile_slider):
         data = data[data['band'] == band]
 
     # 设置要处理的数值列
-    numeric_cols = ['average_rx_rate', 'average_tx_rate', 'congestion_score',
+    numeric_cols = ['average_rx_rate', 'average_tx_rate', 'congestion_score','wifi_coverage_score',
                     'noise', 'errors_rate', 'wan_bandwidth']
 
     data = data.set_index('collection_time_agg')
@@ -113,6 +115,37 @@ def update_graphs(band, filtered_data, sort_indicator, percentile_slider):
     return graphs, percentage_text
 
 
+@app.callback(
+    [Output('sort-indicator-dropdown', 'options'),
+     Output('sort-indicator-dropdown', 'value')],
+    [Input('metric-granularity-dropdown', 'value')]
+)
+def update_sort_indicator_options(selected_granularity):
+    if selected_granularity == 'network':
+        return [
+                   # 可以根据实际情况添加选项
+               ], 'default_value_network'  # 设置 network 时的默认值
+
+    elif selected_granularity == 'controller':
+        options = [
+            {'label': 'Average RX Rate', 'value': 'average_rx_rate'},
+            {'label': 'Average TX Rate', 'value': 'average_tx_rate'},
+            {'label': 'Congestion Score', 'value': 'congestion_score'},
+            {'label': 'Wi-Fi Coverage Score', 'value': 'wifi_coverage_score'},
+            {'label': 'Noise', 'value': 'noise'},
+            {'label': 'Error Rate', 'value': 'errors_rate'},
+            {'label': 'WAN Bandwidth', 'value': 'wan_bandwidth'}
+        ]
+        return options, 'average_rx_rate'  # 设置 controller 的默认值
+
+    elif selected_granularity == 'sta':
+        options = [
+            {'label': 'RSSI', 'value': 'rssi'},
+            {'label': 'Link Rate', 'value': 'linkrate'}
+        ]
+        return options, 'rssi'  # 设置 sta 时的默认值
+
+    return [], None  # 返回空列表时无默认值
 
 
 # 定义加权百分位函数并添加日志
