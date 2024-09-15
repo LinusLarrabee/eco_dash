@@ -59,7 +59,7 @@ layout = html.Div([
                 options=[
                     {'label': 'Per Network', 'value': 'network'},
                     {'label': 'Per Controller', 'value': 'controller'},
-                    {'label': 'Between Controller & Agent', 'value': 'sta'},
+                    {'label': 'Between Controller & Agent', 'value': 'ap-sta'},
                 ],
                 value='controller',
                 style={'width': '100%'}
