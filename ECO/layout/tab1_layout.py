@@ -5,8 +5,7 @@ from config.granularity_config import granularity_options
 layout = html.Div([
     html.Div([
         html.Div([
-            # 变量存储
-            dcc.Store(id='filtered-data'),
+            dcc.Store(id='filtered-data'),  # 用于存储 Tab 1 中的过滤后的数据
 
             # 选择数据分区
             html.Label("选择 Region："),

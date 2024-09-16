@@ -2,7 +2,7 @@ from app import app
 from data import s3_utils
 import pandas as pd
 from dash import dcc, html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import numpy as np
 import logging
 from config.granularity_config import granularity_options
@@ -60,13 +60,14 @@ def update_data_source(start_date, end_date, time_granularity, metric_granularit
 
 @app.callback(
     [Output('graphs-container', 'children'),
-     Output('percentile-output', 'children')],
+     Output('percentile-output', 'children'),
+     Output('tab1-store', 'data')],  # 把图表数据存储到 Store
     [Input('band-dropdown', 'value'),
      Input('filtered-data', 'data'),
      Input('metric-granularity-dropdown', 'value'),
      Input('sort-indicator-dropdown', 'value'),
-     Input('percentile-slider', 'value'),
-     Input('agg-dimension-dropdown', 'value')],  # 增加压缩维度的输入
+     Input('percentile-slider', 'value')],
+    [State('tab1-store', 'data')],
     prevent_initial_call=True
 )
 def update_graphs(band, filtered_data, metric_granularity, sort_indicator, percentile_slider, agg_dimension):
@@ -75,6 +76,7 @@ def update_graphs(band, filtered_data, metric_granularity, sort_indicator, perce
     # 将传入的字典格式的 filtered_data 转为 DataFrame
     data = pd.DataFrame(filtered_data)
     logging.info(data)
+    logging.info(f"Original data has {len(data)} rows")  # 确认数据行数
 
     # 如果 band 被选择，则进行过滤
     if band:
@@ -85,6 +87,13 @@ def update_graphs(band, filtered_data, metric_granularity, sort_indicator, perce
 
     # 提取所有数值列的 'value' 字段作为 numeric_cols
     numeric_cols = [opt['value'] for opt in granularity_data['options']]
+
+    # 检查是否需要重新排序
+    if 'sorted_data' not in data or sort_indicator != data.get('sorted_by', None):
+        # 按照 sort_indicator 对数据进行排序
+        data = data.sort_values(by=sort_indicator)
+        data['sorted_by'] = sort_indicator
+        data['sorted_data'] = True  # 标记已经排序
 
     data = data.set_index('collection_time_agg')
 
@@ -126,6 +135,7 @@ def update_graphs(band, filtered_data, metric_granularity, sort_indicator, perce
 
         # 计算百分位
         num_points = len(data)
+        logging.info(f"len of data is {num_points}")
         lower_idx = int(np.floor(num_points * (percentile_start / 100.0)))
         upper_idx = int(np.ceil(num_points * (percentile_end / 100.0)))
         sliced_data = data.iloc[lower_idx:upper_idx]
@@ -139,26 +149,39 @@ def update_graphs(band, filtered_data, metric_granularity, sort_indicator, perce
                 max_val = np.ceil(sliced_data[col].max())
 
                 # 检查最小值和最大值是否相同，避免生成重复区间
-                if min_val == max_val:
+                if min_val+ 10e-8>max_val:
                     # 如果相等，手动创建一个简单区间范围
                     default_intervals = [min_val - 1, min_val, min_val + 1]
                 else:
-                    default_intervals = np.linspace(min_val, max_val, num=10)  # 生成10个默认区间
+                    # 手动构建区间，确保区间显示为 [min_val, max_val]
+                    default_intervals = np.linspace(min_val, max_val, num=11)
+                    default_intervals[0] = min_val  # 确保最小值区间左闭
+                    default_intervals[-1] = max_val  # 确保最大值区间右闭
             except ValueError:
                 # 如果列不能转换为float，记录错误并继续处理下一列
                 logging.error(f"Column {col} cannot be converted to float.")
                 continue
 
-            # 统计区间数据，使用 duplicates='drop' 防止重复边界
-            interval_counts = pd.cut(sliced_data[col], bins=default_intervals, duplicates='drop').value_counts().sort_index()
+            # 统计区间数据
+            interval_counts = pd.cut(sliced_data[col], bins=default_intervals, right=True, include_lowest=True).value_counts().sort_index()
 
-            # 创建柱状图
+            # 格式化区间：最左侧区间为 [a, b]；其他区间为 (a, b]
+            formatted_intervals = []
+            for idx, interval in enumerate(interval_counts.index):
+                if idx == 0:
+                    # 最左侧区间，显示为 [a, b]
+                    formatted_intervals.append(f"[{int(interval.left)}, {int(interval.right)}]")
+                else:
+                    # 其他区间，保持 (a, b] 格式
+                    formatted_intervals.append(f"({int(interval.left)}, {int(interval.right)}]")
+
             # 从 granularity_data['options'] 中找到与 col 对应的 label
             label = next((opt['label'] for opt in granularity_data['options'] if opt['value'] == col), col)
 
+            # 创建柱状图
             figure = {
                 'data': [
-                    {'x': list(interval_counts.index.astype(str)), 'y': list(interval_counts.values), 'type': 'bar', 'name': label}
+                    {'x': formatted_intervals, 'y': list(interval_counts.values), 'type': 'bar', 'name': label}
                 ],
                 'layout': {
                     'title': f'{label} Distribution for {sort_indicator.capitalize()} Percentile {percentile_start}% - {percentile_end}%',
@@ -173,7 +196,7 @@ def update_graphs(band, filtered_data, metric_granularity, sort_indicator, perce
     percentage_selected = (percentile_end - percentile_start)
     percentage_text = f'Selected Data Percentage: {percentage_selected:.2f}%'
 
-    return graphs, percentage_text
+    return graphs, percentage_text, {'graphs': graphs, 'percentile_output': percentage_text}
 
 @app.callback(
     [Output('sort-indicator-dropdown', 'options'),
