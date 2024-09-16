@@ -5,13 +5,31 @@ from app import app
 from layout import tab1_layout, tab2_layout
 import callbacks.tab1_callbacks
 import callbacks.tab2_callbacks
+import os
+import logging
+from logging.handlers import TimedRotatingFileHandler
 
-# 全局配置 logging
-logging.basicConfig(
-    filename='dash_app.log',  # 日志文件名
-    level=logging.INFO,  # 日志级别
-    format='%(asctime)s - %(levelname)s - %(message)s'  # 日志格式
+# 定义日志文件存放的子目录
+log_dir = 'logs'  # 子目录
+os.makedirs(log_dir, exist_ok=True)  # 如果目录不存在则创建
+
+# 配置日志处理器 - 按天分割日志文件
+log_handler = TimedRotatingFileHandler(
+    filename=os.path.join(log_dir, 'dash_app.log'),  # 指定完整路径
+    when='midnight',  # 每天午夜分割日志
+    interval=1,  # 间隔一天
+    backupCount=7  # 保留最近7天的日志文件
 )
+
+# 设置日志格式
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+log_handler.setFormatter(log_formatter)
+
+# 获取根日志记录器并添加处理器
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(log_handler)
+
 
 # 示例日志信息
 logging.info("Dash app is starting...")

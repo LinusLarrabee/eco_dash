@@ -1,12 +1,12 @@
 import pandas as pd
 from dash import dcc, html
+from config.granularity_config import granularity_options
 
 layout = html.Div([
     html.Div([
         html.Div([
             # 变量存储
             dcc.Store(id='filtered-data'),
-
 
             # 选择数据分区
             html.Label("选择 Region："),
@@ -52,18 +52,18 @@ layout = html.Div([
                 style={'width': '100%'}
             ),
 
+
+            # 在 layout 中动态生成下拉菜单
             html.Br(),  # 添加间距
             html.Label("选择指标维度："),
             dcc.Dropdown(
                 id='metric-granularity-dropdown',
-                options=[
-                    {'label': 'Per Network', 'value': 'network'},
-                    {'label': 'Per Controller', 'value': 'controller'},
-                    {'label': 'Between Controller & Agent', 'value': 'ap-sta'},
-                ],
-                value='controller',
+                options=[{'label': granularity_options[key]['label'], 'value': granularity_options[key]['value']}
+                         for key in granularity_options],  # 动态生成选项
+                value='controller',  # 默认选项
                 style={'width': '100%'}
             ),
+
 
 
             html.Br(),  # 添加间距
@@ -74,7 +74,7 @@ layout = html.Div([
                     {'label': 'Time', 'value': 'time'},
                     {'label': 'Network', 'value': 'network'}
                 ],
-                value='time',  # 默认值
+                value='network',  # 默认值
                 clearable=False,
                 style={'width': '100%'}
             ),
