@@ -45,19 +45,19 @@ def update_data_source(start_date, end_date, time_granularity, metric_granularit
 
     # 从 S3 获取数据，使用动态路径
     data = s3_utils.get_s3_data(start_datetime, end_datetime, time_granularity, path)
-    logging.info(data)
 
     # 将 10 位时间戳（Unix 时间）转换为 datetime 格式
     data['collection_time'] = pd.to_datetime(data['collection_time'], unit='s')
 
-    # 过滤数据，确保同时过滤日期和时间
+    # 过滤数据，确保过滤日期和时间
     filtered_data = data[(data['collection_time'] >= start_datetime) & (data['collection_time'] <= end_datetime)]
-    logging.info(filtered_data)
+    logging.info(f"Filtered data has {len(filtered_data)} rows.")
 
-    # 返回过滤后的数据，存储在 dcc.Store 中
+    # 将过滤后的数据存储在 dcc.Store 中
     return filtered_data.to_dict('records')
 
 
+# 保存图表绘制结果
 @app.callback(
     [Output('graphs-container', 'children'),
      Output('percentile-output', 'children'),
@@ -66,8 +66,8 @@ def update_data_source(start_date, end_date, time_granularity, metric_granularit
      Input('filtered-data', 'data'),
      Input('metric-granularity-dropdown', 'value'),
      Input('sort-indicator-dropdown', 'value'),
-     Input('percentile-slider', 'value')],
-    [State('tab1-store', 'data')],
+     Input('percentile-slider', 'value'),
+     Input('agg-dimension-dropdown', 'value')],  # 增加压缩维度的输入
     prevent_initial_call=True
 )
 def update_graphs(band, filtered_data, metric_granularity, sort_indicator, percentile_slider, agg_dimension):
@@ -75,7 +75,6 @@ def update_graphs(band, filtered_data, metric_granularity, sort_indicator, perce
 
     # 将传入的字典格式的 filtered_data 转为 DataFrame
     data = pd.DataFrame(filtered_data)
-    logging.info(data)
     logging.info(f"Original data has {len(data)} rows")  # 确认数据行数
 
     # 如果 band 被选择，则进行过滤
@@ -196,7 +195,7 @@ def update_graphs(band, filtered_data, metric_granularity, sort_indicator, perce
     percentage_selected = (percentile_end - percentile_start)
     percentage_text = f'Selected Data Percentage: {percentage_selected:.2f}%'
 
-    return graphs, percentage_text, {'graphs': graphs, 'percentile_output': percentage_text}
+    return graphs, percentage_text
 
 @app.callback(
     [Output('sort-indicator-dropdown', 'options'),
