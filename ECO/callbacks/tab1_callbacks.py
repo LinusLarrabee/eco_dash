@@ -100,7 +100,7 @@ def update_graphs(band, filtered_data, metric_granularity, sort_indicator, perce
 
     # 根据选择的压缩维度来决定处理方式
     if agg_dimension == 'network':
-        # 网络压缩维度：按 network 或 controller_id 进行分组
+        # 按网络分组绘制折线图
         grouped = data.groupby('collection_time_agg').apply(
             lambda x: get_percentile_row(x, sort_indicator, [percentile_start, percentile_end])
         )
@@ -114,32 +114,59 @@ def update_graphs(band, filtered_data, metric_granularity, sort_indicator, perce
             # 从 granularity_data['options'] 中找到与 col 对应的 label
             label = next((opt['label'] for opt in granularity_data['options'] if opt['value'] == col), col)
 
-            # 创建图表
+            # 创建折线图
             figure = {
                 'data': [{'x': grouped.index, 'y': grouped[col], 'type': 'line', 'name': col}],
                 'layout': {'title': f'{label} for ({sort_indicator_label}) In {percentile_start:.2f}% - {percentile_end:.2f}%'}
             }
             graphs.append(dcc.Graph(figure=figure))
-
     elif agg_dimension == 'time':
-        # 时间压缩维度：使用 controller_id 作为分组依据
+        # 按时间维度绘制柱状图
         data = data.sort_values(by=sort_indicator)
 
-        # 按 controller_id 进行分组
-        grouped = data.groupby('controller_id')  # 使用 `controller_id` 字段分组
+        # 计算百分位
+        num_points = len(data)
+        lower_idx = int(np.floor(num_points * (percentile_start / 100.0)))
+        upper_idx = int(np.ceil(num_points * (percentile_end / 100.0)))
+        sliced_data = data.iloc[lower_idx:upper_idx]
 
         graphs = []
-        for controller_id, group in grouped:
-            # 找到这个 controller_id 中，sort_indicator 列值在 50%-60% 的数据
-            quantile_50 = group[sort_indicator].quantile(0.5)
-            quantile_60 = group[sort_indicator].quantile(0.6)
-            filtered_group = group[(group[sort_indicator] >= quantile_50) & (group[sort_indicator] <= quantile_60)]
+        for col in numeric_cols:
+            try:
+                # 确保列数据可以转换为float，否则跳过
+                sliced_data[col] = sliced_data[col].astype(float)
+                min_val = np.floor(sliced_data[col].min())
+                max_val = np.ceil(sliced_data[col].max())
 
-            # 创建图表
+                # 检查最小值和最大值是否相同，避免生成重复区间
+                if min_val == max_val:
+                    # 如果相等，手动创建一个简单区间范围
+                    default_intervals = [min_val - 1, min_val, min_val + 1]
+                else:
+                    default_intervals = np.linspace(min_val, max_val, num=10)  # 生成10个默认区间
+            except ValueError:
+                # 如果列不能转换为float，记录错误并继续处理下一列
+                logging.error(f"Column {col} cannot be converted to float.")
+                continue
+
+            # 统计区间数据，使用 duplicates='drop' 防止重复边界
+            interval_counts = pd.cut(sliced_data[col], bins=default_intervals, duplicates='drop').value_counts().sort_index()
+
+            # 创建柱状图
+            # 从 granularity_data['options'] 中找到与 col 对应的 label
+            label = next((opt['label'] for opt in granularity_data['options'] if opt['value'] == col), col)
+
             figure = {
-                'data': [{'x': filtered_group.index, 'y': filtered_group[sort_indicator], 'type': 'line', 'name': f'{controller_id} - {sort_indicator}'}],
-                'layout': {'title': f'Controller {controller_id} - {sort_indicator.capitalize()} In 50%-60% Percentile'}
+                'data': [
+                    {'x': list(interval_counts.index.astype(str)), 'y': list(interval_counts.values), 'type': 'bar', 'name': label}
+                ],
+                'layout': {
+                    'title': f'{label} Distribution for {sort_indicator.capitalize()} Percentile {percentile_start}% - {percentile_end}%',
+                    'xaxis': {'title': 'Interval'},
+                    'yaxis': {'title': 'Count'}
+                }
             }
+
             graphs.append(dcc.Graph(figure=figure))
 
     # 计算选取的用户数据百分比
@@ -147,7 +174,6 @@ def update_graphs(band, filtered_data, metric_granularity, sort_indicator, perce
     percentage_text = f'Selected Data Percentage: {percentage_selected:.2f}%'
 
     return graphs, percentage_text
-
 
 @app.callback(
     [Output('sort-indicator-dropdown', 'options'),
