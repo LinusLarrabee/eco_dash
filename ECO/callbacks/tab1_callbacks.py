@@ -31,7 +31,6 @@ def update_link(region):
      Input('time-granularity-dropdown', 'value'),
      Input('metric-granularity-dropdown', 'value')
      ],
-    # prevent_initial_call=True
 )
 def update_data_source(start_date, end_date, time_granularity, metric_granularity):
     # 解析起止日期，确保 start_datetime 和 end_datetime 包括完整的时间范围
@@ -60,8 +59,7 @@ def update_data_source(start_date, end_date, time_granularity, metric_granularit
 # 保存图表绘制结果
 @app.callback(
     [Output('graphs-container', 'children'),
-     Output('percentile-output', 'children'),
-     Output('tab1-store', 'data')],  # 把图表数据存储到 Store
+     Output('percentile-output', 'children')],  # 把图表数据存储到 Store
     [Input('band-dropdown', 'value'),
      Input('filtered-data', 'data'),
      Input('metric-granularity-dropdown', 'value'),

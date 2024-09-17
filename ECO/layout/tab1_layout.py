@@ -6,7 +6,6 @@ layout = html.Div([
     html.Div([
         html.Div([
             dcc.Store(id='filtered-data'),  # 用于存储 Tab 1 中的过滤后的数据
-
             # 选择数据分区
             html.Label("选择 Region："),
             dcc.Dropdown(
@@ -25,7 +24,7 @@ layout = html.Div([
             html.Label("选择起止日期："),
             dcc.DatePickerRange(
                 id='date-picker-range',
-                min_date_allowed=pd.to_datetime('2024-07-01'),
+                min_date_allowed=pd.to_datetime('2024-09-01'),
                 # max_date_allowed=pd.to_datetime('2024-12-31'),
                 start_date=pd.to_datetime('2024-09-07').date(),
                 end_date=pd.to_datetime('2024-09-10').date(),

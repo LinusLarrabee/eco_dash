@@ -35,9 +35,6 @@ logger.addHandler(log_handler)
 logging.info("Dash app is starting...")
 
 app.layout = html.Div([
-    # 变量存储
-    dcc.Store(id='tab1-store'),  # 用于存储 Tab 1 的状态
-    dcc.Store(id='tab2-store'),
     dcc.Tabs(id='tabs', value='tab1', children=[
         dcc.Tab(label='ECO', value='tab1'),
         dcc.Tab(label='Wifi-Interference', value='tab2'),

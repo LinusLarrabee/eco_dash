@@ -1,13 +1,13 @@
 # config/granularity_config.py
 
 granularity_options = {
-    'network': {
-        'label': 'General',
-        'value': 'network',
-        'path': 'network_id/network'
-    },
+    # 'network': {
+    #     'label': 'General',
+    #     'value': 'network',
+    #     'path': 'network_id/network'
+    # },
     'controller': {
-        'label': 'Per Controller',
+        'label': 'Per Network',
         'value': 'controller',
         'path': 'controller_id/controller',
         'options': [
@@ -21,9 +21,9 @@ granularity_options = {
         ],
         'default': 'average_rx_rate'
     },
-    'ap-sta': {
+    'in-ap': {
         'label': 'Between Controller & Agent',
-        'value': 'ap-sta',
+        'value': 'in-ap',
         'path': 'controller_id/non_controller',
         'options': [
             {'label': 'RSSI', 'value': 'backhaul_sta_rssi'},

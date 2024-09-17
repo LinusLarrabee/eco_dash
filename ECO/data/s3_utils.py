@@ -8,24 +8,6 @@ from config.aws_config import get_s3_client
 
 s3_client = get_s3_client()
 
-
-processed_files = set()
-
-def read_s3_parquet(bucket, file_key):
-    """
-    从 S3 读取 Parquet 文件并返回 DataFrame
-    """
-    if file_key in processed_files:
-        logging.info(f"File {file_key} has already been processed, skipping.")
-        return pd.DataFrame()  # 返回空的 DataFrame，避免重复处理
-
-    response = s3_client.get_object(Bucket=bucket, Key=file_key)
-    df = pd.read_parquet(io.BytesIO(response['Body'].read()))
-    processed_files.add(file_key)  # 记录已处理文件
-    logging.info(f"Read {len(df)} rows from file {file_key}")
-    return df
-
-
 def list_s3_files_by_date(bucket, prefix, date_str):
     """
     列出S3中指定日期的所有文件
@@ -41,64 +23,85 @@ def list_s3_files_by_date(bucket, prefix, date_str):
         logging.warning(f"No files found for date {date_str} in S3.")
         return []
 
-
+def read_s3_parquet(bucket, file_key):
+    """
+    从 S3 读取 Parquet 文件并返回 DataFrame
+    """
+    response = s3_client.get_object(Bucket=bucket, Key=file_key)
+    return pd.read_parquet(io.BytesIO(response['Body'].read()))
 def get_s3_data(start_datetime, end_datetime, granularity, third_level_prefix):
+    """
+    根据时间范围和聚合尺度从 S3 读取多个文件并合并为一个完整的 DataFrame
+    :param start_datetime: 起始时间 (datetime)
+    :param end_datetime: 结束时间 (datetime)
+    :param granularity: 时间聚合单位 ('1h', '1d', '1w', '1m', '1q', '1y')
+    :param third_level_prefix: S3 前缀的第二级，作为传入参数
+    :return: 合并的 DataFrame
+    """
     logging.info(f"Starting data retrieval from {start_datetime} to {end_datetime} with granularity {granularity}.")
 
-    bucket = os.getenv("S3_BUCKET")
-    first_level_prefix = os.getenv("S3_FIRST_LEVEL_PREFIX")
+    # 从环境变量中读取 bucket 和第一级 prefix
+    bucket = os.getenv("S3_BUCKET")  # 从 .env 文件或环境变量中获取 S3 bucket
+    first_level_prefix = os.getenv("S3_FIRST_LEVEL_PREFIX")  # 获取第一级 prefix
 
+    # 确定时间格式和前缀格式
     if granularity == '1m':
         format_str = '%Y-%m'
     elif granularity == '1y':
         format_str = '%Y'
     elif granularity == '1h':
         second_level_prefix = 'hourly/'
-        format_str = '%Y-%m-%d'
+        format_str = '%Y-%m-%d'  # 按天、小时、周处理
     elif granularity == '1d':
         second_level_prefix = 'daily/'
-        format_str = '%Y-%m-%d'
+        format_str = '%Y-%m-%d'  # 按天、小时、周处理
 
     current_datetime = start_datetime
     data_frames = []
 
     while current_datetime <= end_datetime:
-        date_str = current_datetime.strftime(format_str)
 
-        prefix = f"{first_level_prefix}{second_level_prefix}{third_level_prefix}"
+        date_str = current_datetime.strftime(format_str)  # 根据预先确定的格式化规则
+
+        prefix = f"{first_level_prefix}{second_level_prefix}{third_level_prefix}"  # 拼接完整的前缀
 
         logging.info(f"Processing date {date_str} with prefix {prefix}.")
 
+        # 列出该日期下的所有文件
         files = list_s3_files_by_date(bucket, prefix, date_str)
 
+        # 如果没有文件，跳过这个日期
         if not files:
             logging.warning(f"No files found for date {date_str} in S3.")
-            current_datetime = increment_time(current_datetime, granularity)
+            current_datetime = increment_time(current_datetime, granularity)  # 跳过当前日期
             continue
 
+        # 读取并合并文件
         for file_key in files:
+            # 跳过不需要处理的标志性文件，例如 _SUCCESS
             if file_key.endswith('_SUCCESS') or file_key.endswith('.crc'):
                 logging.debug(f"Skipping non-data file {file_key}.")
                 continue
 
             try:
                 df = read_s3_parquet(bucket, file_key)
-                logging.info(f"File {file_key} read with {len(df)} rows.")  # 打印每个文件的行数
                 data_frames.append(df)
+                logging.info(f"Successfully read file {file_key}.")
             except Exception as e:
                 logging.error(f"Failed to read file {file_key}: {e}")
 
+        # 正确递增时间
         current_datetime = increment_time(current_datetime, granularity)
 
+    # 合并所有 DataFrame
     if data_frames:
         combined_df = pd.concat(data_frames, ignore_index=True)
-        logging.info(f"Successfully combined {len(data_frames)} data frames. Combined rows: {len(combined_df)}")
-        combined_df.drop_duplicates(inplace=True)
-        logging.info(f"After dropping duplicates, rows: {len(combined_df)}")
+        logging.info(f"Successfully combined {len(data_frames)} data frames.")
+        logging.info(f"Final DataFrame summary:\n{combined_df.describe()}")  # 记录 DataFrame 的摘要信息
         return combined_df
     else:
         logging.warning(f"No data found between {start_datetime} and {end_datetime}.")
-        return pd.DataFrame()
+        return pd.DataFrame()  # 如果没有数据，返回空的 DataFrame
 
 # 帮助函数，根据聚合尺度递增时间
 def increment_time(current_datetime, granularity):
