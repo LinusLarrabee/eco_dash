@@ -6,6 +6,14 @@ layout = html.Div([
     html.Div([
         html.Div([
             dcc.Store(id='filtered-data'),  # 用于存储 Tab 1 中的过滤后的数据
+            dcc.Store(id='param-store', data={
+                'start_date': None,
+                'end_date': None,
+                'time_granularity': None,
+                'metric_granularity': None,
+                'connection_type_path': None
+            }),
+
             # 选择数据分区
             html.Label("选择 Region："),
             dcc.Dropdown(

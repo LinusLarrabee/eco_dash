@@ -26,6 +26,7 @@ granularity_options = {
         'path': {
             'wireless': 'controller_id/non_controller',
             'ethernet': 'controller_id/non_controller',
+            # 暂时无法获取有线backhaul的结果
             'all': 'controller_id/non_controller'
         },
         'options': [

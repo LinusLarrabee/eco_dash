@@ -9,7 +9,6 @@ from config.granularity_config import granularity_options
 import dash_bootstrap_components as dbc
 
 
-
 # 回调函数，用于跳转到不同的子域名
 @app.callback(
     Output('link-output', 'children'),
@@ -19,7 +18,7 @@ def update_link(region):
     if region:
         url_map = {
             'us-east-1': 'https://baidu.com',
-            'ap-southeast-1': 'http://ap-southeast-1.yourdomain.com',
+            'ap-southeast-1': 'https://aps1-tauc-data-show.i.tplinknbu.com',
             'eu-west-1': 'http://eu-west-1.yourdomain.com'
         }
         return html.A('Open in new tab', href=url_map[region], target='_blank')
@@ -27,14 +26,26 @@ def update_link(region):
 
 # 需要更新数据源的控件
 @app.callback(
-    Output('filtered-data', 'data'),
+    [Output('filtered-data', 'data'),
+     Output('param-store', 'data')],  # 更新保存的参数到 store
     [Input('date-picker-range', 'start_date'),
      Input('date-picker-range', 'end_date'),
      Input('time-granularity-dropdown', 'value'),
      Input('metric-granularity-dropdown', 'value'),
-     Input('band-dropdown', 'value')]  # 新增 connection_type 输入
+     Input('band-dropdown', 'value')],
+    [State('param-store', 'data')]  # 读取存储的参数
 )
-def update_data_source(start_date, end_date, time_granularity, metric_granularity, connection_type):
+def update_data_source(start_date, end_date, time_granularity, metric_granularity, connection_type, stored_params):
+    # 初始化 stored_params 如果为空
+    if stored_params is None:
+        stored_params = {
+            'start_date': None,
+            'end_date': None,
+            'time_granularity': None,
+            'metric_granularity': None,
+            'connection_type_path': None
+        }
+
     # 解析起止日期，确保 start_datetime 和 end_datetime 包括完整的时间范围
     start_datetime = pd.to_datetime(f"{start_date}").replace(hour=0, minute=0, second=0)  # 设置为当天 00:00:00
     end_datetime = pd.to_datetime(f"{end_date}").replace(hour=23, minute=59, second=59)  # 设置为当天 23:59:59
@@ -49,13 +60,22 @@ def update_data_source(start_date, end_date, time_granularity, metric_granularit
     selected_option = granularity_options.get(metric_granularity, None)
     if not selected_option:
         logging.error(f"Invalid metric_granularity: {metric_granularity}")
-        return []
+        return [], stored_params
 
     # 根据 mapped_connection_type 获取路径
     path = selected_option['path'].get(mapped_connection_type, None)
     if not path:
         logging.error(f"Invalid path for connection_type: {connection_type} (mapped as {mapped_connection_type})")
-        return []
+        return [], stored_params
+
+        # 检查是否需要更新数据源
+    if (stored_params['start_date'] == start_date and
+            stored_params['end_date'] == end_date and
+            stored_params['time_granularity'] == time_granularity and
+            stored_params['metric_granularity'] == metric_granularity and
+            stored_params['connection_type_path'] == path):
+        logging.info("Parameters unchanged. No need to reload data.")
+        return [], stored_params  # 如果参数没有变化，则跳过数据更新
 
     # 从 S3 获取数据，使用动态路径
     data = s3_utils.get_s3_data(start_datetime, end_datetime, time_granularity, path)
@@ -67,9 +87,17 @@ def update_data_source(start_date, end_date, time_granularity, metric_granularit
     filtered_data = data[(data['collection_time'] >= start_datetime) & (data['collection_time'] <= end_datetime)]
     logging.info(f"Filtered data has {len(filtered_data)} rows.")
 
-    # 将过滤后的数据存储在 dcc.Store 中
-    return filtered_data.to_dict('records')
+    # 更新存储的参数
+    new_stored_params = {
+        'start_date': start_date,
+        'end_date': end_date,
+        'time_granularity': time_granularity,
+        'metric_granularity': metric_granularity,
+        'connection_type_path': connection_type
+    }
 
+    # 将过滤后的数据和更新后的参数存储在 dcc.Store 中
+    return filtered_data.to_dict('records'), new_stored_params
 
 
 # 保存图表绘制结果
@@ -86,12 +114,18 @@ def update_data_source(start_date, end_date, time_granularity, metric_granularit
 )
 def update_graphs(connection_type, filtered_data, metric_granularity, sort_indicator, percentile_slider, agg_dimension):
     # 检查是否选择了 'in-ap' 和 'ethernet'
-    if metric_granularity == 'in-ap' and connection_type == 'ethernet':
-        notification_message = dbc.Alert(
-            "The combination of 'in-ap' and 'Ethernet' is not supported at this time.",
-            color="warning"
-        )
-        return notification_message, []
+    if connection_type == 'ethernet':
+        if metric_granularity == 'in-ap':
+            notification_message = dbc.Alert(
+                "The combination of 'in-ap' and 'Ethernet' is not supported at this time.",
+                color="warning"
+            )
+            return notification_message, []
+    #     elif metric_granularity == 'controller':
+    #         return notification_message, []
+    # elif connection_type == 'all':
+    #     if metric_granularity == 'controller':
+    #         return notification_message, []
 
 
     percentile_start, percentile_end = percentile_slider
@@ -233,13 +267,10 @@ def update_sort_indicator_options(selected_granularity):
 
 # 定义加权百分位函数并添加日志
 def weighted_percentile(data, percents, sorter):
-    logging.info(f"Data before processing: {data}")
     logging.info(f"Percents: {percents}, Sorter: {sorter}")
 
     num_points = len(data)
     pad_data = np.pad(data[sorter], pad_width=(1, 1), mode='edge')
-
-    logging.info(f"Padded Data: {pad_data}")
 
     lower_percentile = percents[0] / 100 * num_points
     upper_percentile = percents[1] / 100 * num_points
@@ -248,8 +279,6 @@ def weighted_percentile(data, percents, sorter):
     upper_floor = int(np.floor(upper_percentile))
     lower_ceil = int(np.ceil(lower_percentile))
     upper_ceil = int(np.ceil(upper_percentile))
-
-    logging.info(f"Lower percentile: {lower_percentile}, Upper percentile: {upper_percentile}")
     logging.info(f"Lower floor: {lower_floor}, Upper floor: {upper_floor}, Lower ceil: {lower_ceil}, Upper ceil: {upper_ceil}")
 
     # 确保数据类型为浮点数
@@ -258,14 +287,11 @@ def weighted_percentile(data, percents, sorter):
     if lower_floor == upper_floor:
         if upper_percentile - lower_percentile < 10e-8:
             result = (pad_data[lower_floor] + pad_data[lower_floor + 1]) / 2
-            logging.info(f"Result (floor == upper_floor): {result}")
             return result
         return pad_data[lower_ceil]
 
     lower_weight = lower_ceil - lower_percentile
     upper_weight = upper_percentile - upper_floor
-
-    logging.info(f"Lower weight: {lower_weight}, Upper weight: {upper_weight}")
 
     all_value = lower_weight * pad_data[lower_ceil] + upper_weight * pad_data[upper_floor + 1]
 
@@ -277,7 +303,5 @@ def weighted_percentile(data, percents, sorter):
     logging.info(f"All value after adding in range: {all_value}")
 
     weighted_data = all_value / (upper_percentile - lower_percentile)
-
-    logging.info(f"Final weighted data: {weighted_data}")
 
     return weighted_data
