@@ -1,15 +1,14 @@
 # config/granularity_config.py
 
 granularity_options = {
-    # 'network': {
-    #     'label': 'General',
-    #     'value': 'network',
-    #     'path': 'network_id/network'
-    # },
     'controller': {
-        'label': 'Per Network',
+        'label': 'Per Controller',
         'value': 'controller',
-        'path': 'controller_id/controller',
+        'path': {
+            'wireless': 'controller_id/controller',
+            'ethernet': 'controller_id/ethernet',
+            'all': 'controller_id/controller/all'
+        },
         'options': [
             {'label': 'Average RX Rate', 'value': 'average_rx_rate'},
             {'label': 'Average TX Rate', 'value': 'average_tx_rate'},
@@ -24,7 +23,11 @@ granularity_options = {
     'in-ap': {
         'label': 'Between Controller & Agent',
         'value': 'in-ap',
-        'path': 'controller_id/non_controller',
+        'path': {
+            'wireless': 'controller_id/non_controller',
+            'ethernet': 'controller_id/non_controller',
+            'all': 'controller_id/non_controller'
+        },
         'options': [
             {'label': 'RSSI', 'value': 'backhaul_sta_rssi'},
             {'label': 'Link Rate', 'value': 'backhaul_sta_link_rate'}

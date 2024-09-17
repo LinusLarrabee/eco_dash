@@ -62,7 +62,20 @@ layout = html.Div([
                 style={'width': '100%'}
             ),
 
-
+            html.Br(),  # 添加间距
+            html.Label("选择 Connection-Type："),
+            dcc.Dropdown(
+                id='band-dropdown',
+                options=[
+                    {'label': '2.4G', 'value': '2.4GHz'},
+                    {'label': '5G', 'value': '5GHz'},
+                    {'label': '6G', 'value': '6GHz'},
+                    {'label': 'Ethernet', 'value': 'ethernet'},
+                    {'label': 'All', 'value': 'all'}
+                ],
+                value='2.4GHz',
+                style={'width': '100%'}
+            ),
 
             html.Br(),  # 添加间距
             html.Label("选择压缩维度："),
@@ -74,20 +87,6 @@ layout = html.Div([
                 ],
                 value='network',  # 默认值
                 clearable=False,
-                style={'width': '100%'}
-            ),
-
-            html.Br(),  # 添加间距
-
-            html.Label("选择 Band："),
-            dcc.Dropdown(
-                id='band-dropdown',
-                options=[
-                    {'label': '2.4G', 'value': '2.4GHz'},
-                    {'label': '5G', 'value': '5GHz'},
-                    {'label': '6G', 'value': '6GHz'}
-                ],
-                value='2.4GHz',
                 style={'width': '100%'}
             ),
 

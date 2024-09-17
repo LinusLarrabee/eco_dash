@@ -6,6 +6,8 @@ from dash.dependencies import Input, Output, State
 import numpy as np
 import logging
 from config.granularity_config import granularity_options
+import dash_bootstrap_components as dbc
+
 
 
 # 回调函数，用于跳转到不同的子域名
@@ -29,18 +31,31 @@ def update_link(region):
     [Input('date-picker-range', 'start_date'),
      Input('date-picker-range', 'end_date'),
      Input('time-granularity-dropdown', 'value'),
-     Input('metric-granularity-dropdown', 'value')
-     ],
+     Input('metric-granularity-dropdown', 'value'),
+     Input('band-dropdown', 'value')]  # 新增 connection_type 输入
 )
-def update_data_source(start_date, end_date, time_granularity, metric_granularity):
+def update_data_source(start_date, end_date, time_granularity, metric_granularity, connection_type):
     # 解析起止日期，确保 start_datetime 和 end_datetime 包括完整的时间范围
     start_datetime = pd.to_datetime(f"{start_date}").replace(hour=0, minute=0, second=0)  # 设置为当天 00:00:00
     end_datetime = pd.to_datetime(f"{end_date}").replace(hour=23, minute=59, second=59)  # 设置为当天 23:59:59
 
-    # 查找对应的路径
+    # 映射 2.4GHz、5GHz、6GHz 为 "wireless"
+    if connection_type in ['2.4GHz', '5GHz', '6GHz']:
+        mapped_connection_type = 'wireless'
+    else:
+        mapped_connection_type = connection_type
+
+    # 根据 metric_granularity 获取配置
     selected_option = granularity_options.get(metric_granularity, None)
-    if selected_option:
-        path = selected_option['path']
+    if not selected_option:
+        logging.error(f"Invalid metric_granularity: {metric_granularity}")
+        return []
+
+    # 根据 mapped_connection_type 获取路径
+    path = selected_option['path'].get(mapped_connection_type, None)
+    if not path:
+        logging.error(f"Invalid path for connection_type: {connection_type} (mapped as {mapped_connection_type})")
+        return []
 
     # 从 S3 获取数据，使用动态路径
     data = s3_utils.get_s3_data(start_datetime, end_datetime, time_granularity, path)
@@ -56,6 +71,7 @@ def update_data_source(start_date, end_date, time_granularity, metric_granularit
     return filtered_data.to_dict('records')
 
 
+
 # 保存图表绘制结果
 @app.callback(
     [Output('graphs-container', 'children'),
@@ -68,7 +84,16 @@ def update_data_source(start_date, end_date, time_granularity, metric_granularit
      Input('agg-dimension-dropdown', 'value')],  # 增加压缩维度的输入
     prevent_initial_call=True
 )
-def update_graphs(band, filtered_data, metric_granularity, sort_indicator, percentile_slider, agg_dimension):
+def update_graphs(connection_type, filtered_data, metric_granularity, sort_indicator, percentile_slider, agg_dimension):
+    # 检查是否选择了 'in-ap' 和 'ethernet'
+    if metric_granularity == 'in-ap' and connection_type == 'ethernet':
+        notification_message = dbc.Alert(
+            "The combination of 'in-ap' and 'Ethernet' is not supported at this time.",
+            color="warning"
+        )
+        return notification_message, []
+
+
     percentile_start, percentile_end = percentile_slider
 
     # 将传入的字典格式的 filtered_data 转为 DataFrame
@@ -76,8 +101,8 @@ def update_graphs(band, filtered_data, metric_granularity, sort_indicator, perce
     logging.info(f"Original data has {len(data)} rows")  # 确认数据行数
 
     # 如果 band 被选择，则进行过滤
-    if band:
-        data = data[data['band'] == band]
+    if connection_type in ['2.4GHz', '5GHz', '6GHz']:
+        data = data[data['band'] == connection_type]
 
     # 获取当前的 granularity 数据
     granularity_data = granularity_options.get(metric_granularity, {'options': [], 'default': None})
